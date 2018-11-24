@@ -1,0 +1,52 @@
+service: subcity-postprocess
+
+# For the unsuspecting or uninitiated:
+# Sharp needs to be built in an identical environment to that of the Lambda
+# function in which it will run. I couldn't get Sharp built with Docker to
+# work, so I ultimately spinned up an EC2 Linux instance, built it there,
+# and finally put an end to the (very annoying) "ELF header" problems.
+
+# Command to build with Docker (doesn't work when uploaded to Lambda):
+# docker run -v "$(pwd):/var/task" lambci/lambda:build-nodejs8.10 npm install
+
+# Command to deploy with serverless-plugin-existing-s3:
+# serverless deploy && serverless s3deploy
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-existing-s3
+
+package:
+  artifact: postprocess.zip
+
+custom:
+  serverless-offline:
+    port: 3002
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  stage: ${opt:stage, "dev"}
+  environment:
+    DATA_HOST: http://s3.amazonaws.com
+    S3_BUCKET_IN: subcity-bucket-in
+    S3_BUCKET_OUT: subcity-bucket-out
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "arn:aws:s3:::subcity-bucket-in/*"
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "arn:aws:s3:::subcity-bucket-out/*"
+
+functions:
+  postprocess:
+    handler: handler.postprocess
+    events:
+      - existingS3:
+          bucket: ${self:provider.environment.S3_BUCKET_IN}
+          events: 
+            - s3:ObjectCreated:*

@@ -1,0 +1,21 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "",
+  "main": "generate-id.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "aws-sdk": "^2.355.0",
+    "nanoid": "^2.0.0",
+    "request": "^2.88.0",
+    "stripe": "^6.15.0"
+  },
+  "devDependencies": {
+    "js-yaml": "^3.12.0"
+  }
+}

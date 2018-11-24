@@ -1,0 +1,260 @@
+service: subcity-graphql
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+  - serverless-s3-local
+
+# package:
+#   individually: true
+#   include:
+#     - "../env.yml"
+
+custom:
+  serverless-offline:
+    port: 3001
+  s3:
+    host: 0.0.0.0
+    port: 8000
+    directory: /tmp
+    cors: ./cors.xml
+  webpack:
+    webpackConfig: ./webpack.config.js
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  stage: ${opt:stage, "dev"}
+  environment: ${file(../env.yml):dev}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        # - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:BatchGetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:*"
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "arn:aws:s3:::subcity-bucket-in/*"
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: "arn:aws:s3:::subcity-bucket-out/*"
+
+functions:
+
+  ### Authentication
+
+  auth:
+    handler: auth/handler.auth
+
+  ### GQL Public
+
+  public:
+    handler: handler.public
+    events:
+      - http:
+          path: /api/public
+          method: post
+          cors: true
+
+  ### GQL Private
+
+  private:
+    handler: handler.private
+    events:
+      - http:
+          path: /api/private
+          method: post
+          authorizer: auth
+          cors: true
+
+resources:
+  Resources:
+    ImageBucketIn:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.S3_BUCKET_IN}
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              MaxAge: 3000
+    ImageBucketOut:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.S3_BUCKET_OUT}
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - GET
+              MaxAge: 3000
+
+    ### ChannelsTable
+
+    ChannelsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: channel_id
+          KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_CHANNELS}"
+
+    ### ReleasesTable
+
+    ReleasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
+        - AttributeName: release_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: channel_id
+          KeyType: HASH
+        - AttributeName: release_id
+          KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_RELEASES}"
+
+    ### SyndicatesTable
+
+    SyndicatesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: syndicate_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: syndicate_id
+          KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_SYNDICATES}"
+
+    ### ProposalsTable
+
+    ProposalsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: syndicate_id
+          AttributeType: S
+        - AttributeName: proposal_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: syndicate_id
+          KeyType: HASH
+        - AttributeName: proposal_id
+          KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_PROPOSALS}"
+
+    ### SubscribersTable
+
+    SubscribersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: subscriber_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: subscriber_id
+          KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_SUBSCRIBERS}"
+
+    ### PurchasesTable
+
+    PurchasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: subscriber_id
+          AttributeType: S
+        - AttributeName: purchase_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: subscriber_id
+          KeyType: HASH
+        - AttributeName: purchase_id
+          KeyType: RANGE
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_PURCHASES}"
+
+    ### TokensTable
+
+    TokensTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: token_id
+          AttributeType: S
+        KeySchema:
+        - AttributeName: token_id
+          KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_TOKENS}"
+
+    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    GatewayResponse:
+      Type: "AWS::ApiGateway::GatewayResponse"
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: EXPIRED_TOKEN
+        RestApiId:
+          Ref: "ApiGatewayRestApi"
+        StatusCode: "401"
+
+    AuthFailureGatewayResponse:
+      Type: "AWS::ApiGateway::GatewayResponse"
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: "ApiGatewayRestApi"
+        StatusCode: "401"

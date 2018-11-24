@@ -1,0 +1,13 @@
+{
+  "name": "subcity-postprocess",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "description": "A private endpoint to detect and format file uploads.",
+  "dependencies": {
+    "sharp": "^0.20.7"
+  },
+  "devDependencies": {
+    "serverless-offline": "^3.31.3",
+    "serverless-plugin-existing-s3": "^2.2.2"
+  }
+}

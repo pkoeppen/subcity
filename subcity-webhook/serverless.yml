@@ -1,0 +1,53 @@
+service: subcity-webhook
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+
+package:
+  individually: true
+
+custom:
+  serverless-offline:
+    port: 3003
+  webpack:
+    webpackConfig: ./webpack.config.js
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  stage: ${opt:stage, "dev"}
+  environment:
+
+    ### DynamoDB
+
+    DYNAMODB_TABLE_SUBSCRIBERS: subscribers-dev
+    DYNAMODB_TABLE_CHANNELS: channels-dev
+    DYNAMODB_TABLE_SYNDICATES: syndicates-dev
+    DYNAMODB_TABLE_PURCHASES: purchases-dev
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        # - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:BatchGetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:*"
+
+functions:
+
+  ### Inbound Webhooks
+
+  inbound:
+    handler: handler.inbound
+    events:
+      - http:
+          path: api/inbound
+          method: post
+          cors: true

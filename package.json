@@ -1,0 +1,13 @@
+{
+  "name": "subcity",
+  "version": "1.0.0",
+  "license": "UNLICENSED",
+  "description": "A collaborative paywall and subscription service.",
+  "author": "Peter Koeppen",
+  "scripts": {
+    "test": "mocha --timeout 15000 \"gql/test/**/*.test.js\"",
+    "reset": "node ./shared/tools/reset.js",
+    "clear": "node ./shared/tools/clear.js",
+    "seed": "node ./shared/tools/seed.js"
+  }
+}
