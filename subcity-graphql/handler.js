@@ -13,7 +13,12 @@ const handlerPublic = (event, context, callback) => {
     graphql(schema.public, query, null, event.requestContext.identity, vars)
     .then(
       result => {
-        console.log(`[public][200]`);
+
+        if (result.errors) {
+          throw result.errors[0];
+        }
+
+        console.log(`[public][200] ${Object.keys(result.data)[0]}`);
         return callback(null, {
           headers: {
             "Access-Control-Allow-Origin": "*" // change
@@ -23,7 +28,7 @@ const handlerPublic = (event, context, callback) => {
         });
       },
       error => {
-        console.log(`[public][400] Error: ${Object.keys(result.data)[0]}`);
+        console.log(`[public][400] Error: ${error}`);
         return callback(null, {
           headers: {
             "Access-Control-Allow-Origin": "*" // change
@@ -32,11 +37,14 @@ const handlerPublic = (event, context, callback) => {
           body: error.message
         });
       }
-    );
+    )
+    .catch(error => {
+      throw error;
+    });
   }
 
   catch(error) {
-    console.error(error);
+    console.error(`[public][400] Error: ${error}`);
     callback(null, {
       headers: {
         "Access-Control-Allow-Origin": "*" // change
@@ -54,10 +62,15 @@ const handlerPublic = (event, context, callback) => {
 const handlerPrivate = (event, context, callback) => {
 
   try {
-    const { query, vars } = sanitizeQuery(event);
-    graphql(schema.private, query, null, { private: true }, vars)
+    const { query, vars, ctx } = sanitizeQuery(event);
+    graphql(schema.private, query, null, ctx, vars)
     .then(
       result => {
+
+        if (result.errors) {
+          throw result.errors[0];
+        }
+
         console.log(`[private][200] ${Object.keys(result.data)[0]}`);
         return callback(null, {
           headers: {
@@ -68,7 +81,7 @@ const handlerPrivate = (event, context, callback) => {
         });
       },
       error => {
-        console.log(`[private][400] Error: ${Object.keys(result.data)[0]}`);
+        console.log(`[private][400] Error: ${error}`);
         return callback(null, {
           headers: {
             "Access-Control-Allow-Origin": "*" // change
@@ -77,11 +90,14 @@ const handlerPrivate = (event, context, callback) => {
           body: error.message
         });
       }
-    );
+    )
+    .catch(error => {
+      throw error;
+    });
   }
 
   catch(error) {
-    console.error(error);
+    console.error(`[private][400] Error: ${error}`);
     callback(null, {
       headers: {
         "Access-Control-Allow-Origin": "*" // change
@@ -115,7 +131,8 @@ function sanitizeQuery(event) {
   // First, we extract the user's hashed ID
   // and role from the authorization event.
 
-  const id = getPrincipalID(event);
+  const ctx  = { private: true };
+  const id   = getPrincipalID(event);
   const role = getRole(event);
   const { query, vars } = JSON.parse(event.body);
 
@@ -129,6 +146,7 @@ function sanitizeQuery(event) {
   // Next, we inject said ID into the variables dictionary, so that
   // there can be no opportunity for self-injection or other tomfoolery.
 
+  ctx[`${role}_id`]  = id;
   vars[`${role}_id`] = id;                 // for queries
   (vars["data"] || {})[`${role}_id`] = id; // for mutations
 
@@ -139,5 +157,5 @@ function sanitizeQuery(event) {
 
   // Finally, return the clean query.
 
-  return { query, vars };
+  return { query, vars, ctx };
 }

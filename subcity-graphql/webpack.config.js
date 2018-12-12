@@ -7,6 +7,7 @@ const slsw   = require("serverless-webpack");
 const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
 
 module.exports = {
+  mode: "development",
   entry: slsw.lib.entries,
   target: "node",
   module: {

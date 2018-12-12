@@ -6,7 +6,7 @@ service: subcity-postprocess
 # work, so I ultimately spinned up an EC2 Linux instance, built it there,
 # and finally put an end to the (very annoying) "ELF header" problems.
 
-# Command to build with Docker (doesn't work when uploaded to Lambda):
+# Command to build with Docker (Windows) (doesn't work when uploaded to Lambda):
 # docker run -v "$(pwd):/var/task" lambci/lambda:build-nodejs8.10 npm install
 
 # Command to deploy with serverless-plugin-existing-s3:
@@ -28,19 +28,16 @@ provider:
   runtime: nodejs8.10
   region: us-east-1
   stage: ${opt:stage, "dev"}
-  environment:
-    DATA_HOST: http://s3.amazonaws.com
-    S3_BUCKET_IN: subcity-bucket-in
-    S3_BUCKET_OUT: subcity-bucket-out
+  environment: ${file(../env.yml):${opt:stage, "dev"}}
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - s3:*
-      Resource: "arn:aws:s3:::subcity-bucket-in/*"
+        - s3:* # narrow this
+      Resource: arn:aws:s3:::subcity-bucket-in-${opt:stage, "dev"}/*
     - Effect: Allow
       Action:
-        - s3:*
-      Resource: "arn:aws:s3:::subcity-bucket-out/*"
+        - s3:* # narrow this
+      Resource: arn:aws:s3:::subcity-bucket-out-${opt:stage, "dev"}/*
 
 functions:
   postprocess:

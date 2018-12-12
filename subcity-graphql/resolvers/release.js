@@ -4,8 +4,10 @@ const {
   merge
 } = require("lodash");
 const {
+  promisify,
   generateID,
   DynamoDB,
+  S3,
   buildDynamoDBQuery,
   parseDescription,
   sanitize
@@ -45,22 +47,30 @@ const getReleaseById = (root, args) => {
 
 const getReleaseBySlug = (root, args, ctx, ast) => {
 
+  // _channel_id (with underscore) is the ID of the channel being viewed.
+
   const {
-    channel_id,
+    channel_id: _channel_id,
     releases
   } = root;
 
   const {
-    subscriber_id,
     slug
   } = args;
+
+  // channel_id (without underscore) is the channel currently logged in.
+
+  const {
+    channel_id,
+    subscriber_id
+  } = ctx;
 
   var params = {
     TableName: process.env.DYNAMODB_TABLE_RELEASES,
     KeyConditionExpression: "channel_id = :channel_id",
     FilterExpression: "slug = :slug",
     ExpressionAttributeValues: {
-      ":channel_id": channel_id,
+      ":channel_id": _channel_id,
       ":slug": slug
     }
   };
@@ -84,28 +94,45 @@ const getReleaseBySlug = (root, args, ctx, ast) => {
           FilterExpression: "channel_id = :channel_id",
           ExpressionAttributeValues: {
             ":subscriber_id": subscriber_id,
-            ":channel_id": channel_id
+            ":channel_id": _channel_id
           }
         };
 
-        const { Items: purchases } = await DynamoDB.query(params).promise();
+        //const { Items: purchases } = await DynamoDB.query(params).promise();
+        //
+        const purchases = [{ release_id: release.release_id }];
+        //
 
         for (let i = 0; i < purchases.length; i++) {
+
           let purchase = purchases[i];
+          let params = {
+            Key: `channels/${_channel_id}/releases/${release.release_id}/payload/${release.payload_url}`,
+            Bucket: process.env.S3_BUCKET_OUT,
+            Expires: 3600
+          };
+
           if (purchase.release_id === release.release_id) {
             
             // Purchased on its own.
 
-            release.download_url = "https://google.com/"; // get signed url
+            release.download_url = await promisify(callback => S3.getSignedUrl("getObject", params, callback));
             break;
           } else if (purchase.start_time < release.created_at < purchase.end_time) {
             
             // Purchased as part of a subscription.
 
-            release.download_url = "https://google.com/"; // get signed url
+            release.download_url = await promisify(callback => S3.getSignedUrl("getObject", params, callback));
             break;
           }
         }
+      }
+
+      else if (channel_id && channel_id === _channel_id) {
+
+        // Check if the channel logged in is also the channel being viewed.
+
+        release.download_url = "https://google.com/";
       }
 
       // Deserialize the release description.

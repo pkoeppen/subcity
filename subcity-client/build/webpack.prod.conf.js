@@ -11,7 +11,7 @@ const OptimizeCSSPlugin = require("optimize-css-assets-webpack-plugin");
 
 const env = process.env.NODE_ENV === "testing"
   ? require("../config/test.env")
-  : config.build.env;
+  : config.build.env.__wrap__();
 
 const webpackConfig = merge(baseWebpackConfig, {
   module: {

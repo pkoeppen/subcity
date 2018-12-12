@@ -7,7 +7,7 @@ const { loadEnv } = require("../../shared");
 
 module.exports = {
   build: {
-    env: loadEnv("prod"),
+    env: loadEnv("dev"),
     index: path.resolve(__dirname, "../dist/index.html"),
     assetsRoot: path.resolve(__dirname, "../dist"),
     assetsSubDirectory: "static",

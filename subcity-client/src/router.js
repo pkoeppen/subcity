@@ -194,7 +194,7 @@ export default new Router({
           }
         `;
         const vars = { token_id };
-        Vue.prototype.$http.post(`${Vue.prototype.$config.apiHost}/api/public`, { query, vars })
+        Vue.prototype.$http.post("/api/public", { query, vars })
         .then(response => {
           const tokenValid = response.data.data.getSignupToken;
           if (tokenValid) { next(); }
@@ -280,7 +280,7 @@ function handleLogin(to, from, next) {
 
   // Off to GraphQL-land.
 
-  config.$http.post(`${config.$config.apiHost}/api/private`,
+  config.$http.post("/api/private",
     { query, vars: { data }},
     { headers: config.$getHeaders() })
   .then(response => {

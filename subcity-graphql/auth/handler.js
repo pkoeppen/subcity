@@ -4,14 +4,14 @@ const jwt = require("jsonwebtoken");
 
 ////////////////////////////////////////////////////
 
-const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
+const AUTH0_CLIENT_ID         = process.env.AUTH0_CLIENT_ID;
 const AUTH0_CLIENT_PUBLIC_KEY = process.env.AUTH0_CLIENT_PUBLIC_KEY;
 
 ////////////////////////////////////////////////////
 
 module.exports.auth = (event, context, callback) => {
   if (!event.authorizationToken) {
-    return callback("Unauthorized");
+    return callback("Unauthorized", { statusCode: 403 });
   }
 
   const tokenParts = event.authorizationToken.split(" ");
@@ -21,7 +21,7 @@ module.exports.auth = (event, context, callback) => {
 
     // No JRR Tolkien
 
-    return callback("Unauthorized.");
+    return callback("Unauthorized.", { statusCode: 403 });
   }
 
   const options = { aud: AUTH0_CLIENT_ID };
@@ -30,7 +30,7 @@ module.exports.auth = (event, context, callback) => {
     jwt.verify(tokenValue, AUTH0_CLIENT_PUBLIC_KEY, options, (error, decoded) => {
       if (error) {
         console.error(`Error: Token invalid.\n${error}`);
-        return callback("Unauthorized.");
+        return callback("Unauthorized.", { statusCode: 403 });
       }
       console.log(`Valid from custom authorizer: ${decoded}`);
       return callback(null, generatePolicy(decoded, "Allow", event.methodArn));
@@ -39,7 +39,7 @@ module.exports.auth = (event, context, callback) => {
 
   catch (error) {
     console.error(`Error: Token invalid.\n${error}`);
-    return callback("Unauthorized.");
+    return callback("Unauthorized.", { statusCode: 403 });
   }
 };
 

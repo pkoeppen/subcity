@@ -19,7 +19,7 @@ rm(path.join(config.build.assetsRoot, config.build.assetsSubDirectory), (error) 
 
   webpack(webpack_config, function (error, stats) {
     spinner.stop();
-    if (err) {
+    if (error) {
       throw error;
     }
     process.stdout.write(stats.toString({

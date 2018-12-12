@@ -743,7 +743,7 @@ export default {
 
       // Execute the mutation.
 
-      return this.$http.post(`${this.$config.host}/api/private`, {
+      return this.$http.post("/api/private", {
           query: mutation,
           vars: { data }
         },
@@ -810,7 +810,7 @@ export default {
 
       // Retrieve the URL.
 
-      const uploadURL = await this.$http.post(`${this.$config.host}/api/private`, {
+      const uploadURL = await this.$http.post("/api/private", {
           query,
           vars: { data }
         },
@@ -825,7 +825,16 @@ export default {
 
       // Upload the image to the retrieved URL.
 
-      return this.$http.put(uploadURL, file)
+      return this.$http.put(uploadURL, file, {
+        transformRequest: [
+          (data, headers) => {
+            delete headers.common;
+            delete headers.put;
+            headers["Content-Type"] = file.type;
+            return data;
+          }
+        ]
+      })
       .then(response => {
         if (response.status !== 200) {
           this[upload_type].state = "error";

@@ -125,7 +125,11 @@
               <h4 class="heading my-0 mx-3 text-muted">Payload</h4>
               <hr class="flex-fill m-0">
             </div>
-            <file-embed v-if="channel.payload_url" :channel_id="channel.channel_id" :url="channel.payload_url"></file-embed>
+
+            <!-- TODO: correct download url -->
+
+            <file-embed v-if="channel.payload_url" :channel_id="channel.channel_id" :display_url="channel.payload_url" :download_url="channel.download_url"></file-embed>
+
             <div v-else class="text-center">
               <span>No payload to display.</span>
             </div>
@@ -628,7 +632,8 @@ export default {
         }
       `;
 
-      const url = `${this.$config.apiHost}/api/${role ? "private" : "public"}`
+      const url = `/api/${role ? "private" : "public"}`;
+
       return this.$http.post(url,
         { query, vars: { slug }},
         { headers: this.$getHeaders() })
@@ -643,10 +648,10 @@ export default {
 
         // Success.
 
-        const channel = response.data.data.getChannelBySlug;
-        this.channel = channel;
+        const channel      = response.data.data.getChannelBySlug;
+        this.channel       = channel;
         this.content.state = "loaded";
-        this.data.state = "ready";
+        this.data.state    = "ready";
 
       }).catch(error => {        
         console.error(error);
@@ -681,7 +686,7 @@ export default {
         }
       `;
 
-      this.$http.post(`${this.$config.apiHost}/api/private`,
+      this.$http.post("/api/private",
         { query, vars: {} },
         { headers: this.$getHeaders() })
       .then(response => {
@@ -732,7 +737,7 @@ export default {
         }
       `;
 
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {
@@ -774,7 +779,7 @@ export default {
         }
       `;
       
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {

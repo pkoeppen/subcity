@@ -55,7 +55,9 @@
 
             <h1 class="display-header text-center">{{ release.title }}</h1>
             <p v-html="release.description" class="text-justify px-4 my-0"></p>
-            <div class="text-center mt-3"><a :href="release.download_url">{{ release.download_url || "Not purchased" }}</a></div>
+            <div class="text-center mt-3">
+              <a :href="release.download_url">{{ release.payload_url }}</a>
+            </div>
 
             <content-loader
               v-if="content.state === '_loading'"
@@ -88,7 +90,17 @@
               <h4 class="heading my-0 mx-3 text-muted">Payload</h4>
               <hr class="flex-fill m-0">
             </div>
-            <file-embed v-if="release.payload_url" :channel_id="channel.channel_id" :url="release.payload_url"></file-embed>
+
+            <div v-if="!channel.is_subscribed">
+              not subscribed
+            </div>
+
+            <file-embed v-else-if="release.download_url"
+                        :channel_id="channel.channel_id"
+                        :display_url="release.payload_url"
+                        :download_url="release.download_url">
+            </file-embed>
+
             <div v-else class="text-center">
               <span>No payload to display.</span>
             </div>
@@ -117,13 +129,15 @@
 <script>
 
 import PaginatorRelease from "@/components/Paginators/PaginatorRelease.vue";
+import FileEmbed from "@/components/FileEmbed.vue";
 import { ContentLoader } from "vue-content-loader";
 import auth from "@/auth/";
 
 export default {
 
   components: {
-    ContentLoader
+    ContentLoader,
+    FileEmbed
   },
 
   data () {
@@ -224,11 +238,12 @@ export default {
             is_nsfw,
             subscription_rate,
             is_subscribed,
-            release(slug: $release_slug${roleString2}) {
+            release(slug: $release_slug) {
               title,
               description,
               banner_url,
-              download_url
+              download_url,
+              payload_url
             },
             syndicates {
               syndicate_id,
@@ -241,7 +256,8 @@ export default {
         }
       `;
 
-      const url = `${this.$config.apiHost}/api/${role ? "private" : "public"}`
+      const url = `/api/${role ? "private" : "public"}`;
+
       return this.$http.post(url,
         { query, vars },
         { headers: this.$getHeaders() })
@@ -259,6 +275,8 @@ export default {
         const channel = response.data.data.getChannelBySlug;
         this.channel = channel;
         this.release = channel.release;
+        console.log("is_subscribed:", channel.is_subscribed)
+        console.log("download_url:", channel.release.download_url)
         // this.content.state = "loaded";
         // this.data.state = "ready";
 

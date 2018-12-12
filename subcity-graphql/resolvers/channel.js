@@ -3,6 +3,7 @@ const {
   promisify,
   sanitize,
   DynamoDB,
+  S3,
   buildDynamoDBQuery,
   getIDHash,
   parseDescription,
@@ -25,7 +26,17 @@ const {
 ///////////////////////////////////////////////////
 
 
-const getChannelById = (root, args, ctx, ast) => {
+const getChannelById = async (root, args, ctx, ast) => {
+  const params2 = {
+      Bucket: process.env.S3_BUCKET_OUT,
+
+      // Remove filename.
+
+      //Prefix: "channels/1DbsTgA6NFF4hd0H/payload"
+    };
+
+    const foo = await S3.listObjects(params2).promise().catch(error => console.log(error));
+    console.log(foo)
 
   // Always private, called from the channel settings page.
 
@@ -51,7 +62,7 @@ const getChannelById = (root, args, ctx, ast) => {
   })
   .catch(error => {
     console.error(error);
-    throw new Error("Error fetching channel.");
+    return new Error("Error fetching channel.");
   });
 };
 

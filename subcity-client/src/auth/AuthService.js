@@ -99,8 +99,10 @@ export default class AuthService {
     if (!this.isAuthenticated()) {
       return null;
     }
+    
     const namespace = process.env.SPA_HOST;
     const id_token  = localStorage.getItem("id_token");
+
     if (id_token) {
 
       // TODO: Change this back to variable
@@ -111,9 +113,9 @@ export default class AuthService {
 
   getLogins() {
     const namespace = process.env.SPA_HOST;
-    const idToken   = localStorage.getItem("id_token");
-    if (idToken) {
-      return decode(idToken)[`${namespace}/login_count`] || null;
+    const id_token  = localStorage.getItem("id_token");
+    if (id_token) {
+      return decode(id_token)[`${namespace}/login_count`] || null;
     }
   }
 

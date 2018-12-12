@@ -30,16 +30,11 @@ const getUploadURL = (root, args) => {
               getChannelUploadKey(data);
 
   if (!key) { throw new Error("Invalid or missing input."); }
-  console.log("fucking params",params)
+
   const params = {
     Bucket: process.env.S3_BUCKET_IN,
     Key: key,
-    ContentType: data.mime_type,
-    ACL: "public-read-write",
-
-    // Upload endpoint expires in 60 seconds.
-    
-    Expires: 60
+    ContentType: "image/jpeg"
   };
 
   // This needs to use the "promisify" shim - Doesn't have a promise() method.
@@ -66,15 +61,18 @@ const allowedImageExtensions = [
 ];
 
 const rollback = {
+
   async deleteRelease(channel_id, release_id) {
     const result = await require("./release").delete({ channel_id, release_id });
     return result;
   },
+
   async deleteProposal(syndicate_id, proposal_id) {
     const result = await require("./proposal").delete({ syndicate_id, proposal_id });
     return result;
   }
 };
+
 
 function getFilename(mime_type, upload_type, filename) {
 

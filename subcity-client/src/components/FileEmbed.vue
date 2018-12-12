@@ -1,28 +1,19 @@
 <template>
-  <div v-if="url !== null">
+  <div>
 
-    <content-loader v-if="loading"
-                    primaryColor="#EEEEEE"
-                    secondaryColor="#DDDDDD"
-                    :speed=".5"
-                    :width="100"
-                    :height="56.25">
-      <rect x="0" y="0" width="100" height="56.25" />
-    </content-loader>
-
-    <img v-if="filetype === 'image'" :src="fullURL" class="img-fluid">
+    <img v-if="filetype === 'image'" :src="download_url" class="img-fluid">
 
     <video v-if="filetype === 'video'"
            class="embed-responsive"
-           :src="fullURL"
+           :src="download_url"
            controls>
         Your browser does not support video embeds.
     </video>
 
-    <a :href="fullURL" download>
+    <a :href="download_url" download>
       <base-alert type="primary" class="d-flex justify-content-center align-items-center rounded-0 m-0">
         <i :class="iconClass" style="font-size:14px;"></i>
-        <span class="alert-inner--text ml-2">{{ url }}</span>
+        <span class="alert-inner--text ml-2">{{ display_url }}</span>
       </base-alert>
     </a>
 
@@ -31,7 +22,6 @@
 
 <script>
 import BaseAlert from "@/components/Base/BaseAlert.vue";
-import { ContentLoader } from "vue-content-loader";
 
 const filetypes = {
   image: [
@@ -51,8 +41,7 @@ const filetypes = {
 export default {
   name: "file-embed",
   components: {
-    BaseAlert,
-    ContentLoader
+    BaseAlert
   },
   props: {
     channel_id: {
@@ -60,27 +49,22 @@ export default {
       required: true,
       default: ""
     },
-    url: {
+    display_url: {
+      type: String,
+      required: true,
+      default: ""
+    },
+    download_url: {
       type: String,
       required: true,
       default: ""
     }
   },
 
-  data () {
-    return {
-
-    }
-  },
-
   computed: {
 
-    loading() {
-      return this.url === "";
-    },
-
     filetype() {
-      const match = /\.[a-z0-9]+$/i.exec(this.url);
+      const match = /\.[a-z0-9]+$/i.exec(this.display_url);
       if (!match) { return null; }
       const filetype = match[0].slice(1);
 
@@ -89,18 +73,11 @@ export default {
       return "file";
     },
 
-    fullURL() {
-      return `${this.$config.dataHost}/bucket-out/channels/${this.channel_id}/payload/${this.url}`;
-    },
-
     iconClass() {
       if (this.loading) { return "fas fa-sync-alt fa-spin"; }
       return "fas fa-download";
     }
-  },
-
-  methods: {
-
   }
+
 };
 </script>

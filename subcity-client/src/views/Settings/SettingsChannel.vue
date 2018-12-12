@@ -492,9 +492,10 @@ export default {
     },
 
     fetchChannelSettings() {
-      this.data.state = "loading";
+
       this.profileImage.state = "ready";
-      this.payloadFile.state = "loading";
+      this.payloadFile.state  = "loading";
+      this.data.state         = "loading";
 
       const query = `
         query($channel_id: ID!) {
@@ -543,6 +544,7 @@ export default {
         this.data.state = "ready";
         this.payloadFile.state = "ready";
         this.channel = channel;
+
       })
       .catch(error => {
         console.error(error);
@@ -638,12 +640,12 @@ export default {
         }
 
         // Success.
-        console.log(response.data.data.getUploadURL)
+
         return response.data.data.getUploadURL;
       })
       .catch(error => {
         console.error(error);
-      });;
+      });
 
       const onUploadProgress = upload_type === "payloadFile"
                              ? e => {
@@ -659,7 +661,7 @@ export default {
           (data, headers) => {
             delete headers.common;
             delete headers.put;
-            headers["Content-Type"] = "image/jpeg";
+            headers["Content-Type"] = file.type;
             return data;
           }
         ]

@@ -1,9 +1,9 @@
 service: subcity-graphql
 
 plugins:
-  - serverless-webpack
+  #- serverless-webpack
   - serverless-offline
-  - serverless-s3-local
+  #- serverless-s3-local
 
 # package:
 #   individually: true
@@ -26,7 +26,7 @@ provider:
   runtime: nodejs8.10
   region: us-east-1
   stage: ${opt:stage, "dev"}
-  environment: ${file(../env.yml):dev}
+  environment: ${file(../env.yml):${opt:stage, "dev"}}
 
   iamRoleStatements:
     - Effect: Allow
@@ -43,11 +43,11 @@ provider:
     - Effect: Allow
       Action:
         - s3:*
-      Resource: "arn:aws:s3:::subcity-bucket-in/*"
+      Resource: "arn:aws:s3:::subcity-bucket-in-${self:provider.stage}/*"
     - Effect: Allow
       Action:
         - s3:*
-      Resource: "arn:aws:s3:::subcity-bucket-out/*"
+      Resource: "arn:aws:s3:::subcity-bucket-out-${self:provider.stage}/*"
 
 functions:
 

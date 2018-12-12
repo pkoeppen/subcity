@@ -99,7 +99,7 @@ export default {
         }
       `;
 
-      return this.$http.post(`${this.$config.apiHost}/api/public`,
+      return this.$http.post("/api/public",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {

@@ -89,6 +89,8 @@ const dispatch = {
 
     // Removes relevant subscription from subscriber and notifies them of the failed charge.
 
+    // TODO
+
   }
 };
 
@@ -96,8 +98,6 @@ const dispatch = {
 const handlerInbound = (event, context, callback) => {
 
   // Dispatches Stripe events to their appropriate handlers.
-
-  console.log(event)
 
   body = JSON.parse(event.body);
   const type = body.type;
@@ -263,6 +263,7 @@ function addPurchasesToSubscriber({ channels, channel_id, subscriber_id, syndica
     return Promise.all(channels.map(channel_id => {
       purchase.channel_id = channel_id;
       purchase.source     = `syndicate:${syndicate_id}`;
+      
       console.log(`${"[DynamoDB:PURCHASES] ".padEnd(30, ".")} Creating purchase ${subscriber_id}:${purchase_id}`);
       return DynamoDB.put({
         TableName: process.env.DYNAMODB_TABLE_PURCHASES,
