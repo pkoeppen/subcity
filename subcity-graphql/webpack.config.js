@@ -1,5 +1,5 @@
-const path   = require("path");
-const slsw   = require("serverless-webpack");
+const path = require("path");
+const slsw = require("serverless-webpack");
 
 // The UglifyJS plugin MUST be version 1.1.6, otherwise it spits
 // out some error about "Unexpected token: punc ([)".

@@ -727,7 +727,7 @@ export default {
 
         case (this.new && this.isSyndicateType):
           mutation = mutations.createSyndicate;
-          data.subscription_rate = parseFloat(data.subscription_rate);
+          data.subscription_rate = parseInt(data.subscription_rate.replace(/\./g, ""));
           break;
 
         // createProposal

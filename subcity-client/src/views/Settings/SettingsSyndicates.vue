@@ -97,7 +97,7 @@ export default {
         }
       `;
 
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: {}},
         { headers: this.$getHeaders() })
       .then(response => {
@@ -135,7 +135,7 @@ export default {
         }
       `;
       
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {

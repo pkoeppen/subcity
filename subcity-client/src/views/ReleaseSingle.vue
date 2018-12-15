@@ -91,11 +91,27 @@
               <hr class="flex-fill m-0">
             </div>
 
-            <div v-if="!channel.is_subscribed">
-              not subscribed
+            <div>
+              <base-button @click="showModal('subscribe')"
+                           type="primary"
+                           size="sm"
+                           :disabled="channel.is_subscribed">
+                <i :class="onetimeButtonIconClass" style="font-size:14px;"></i>
+                <span>Subscribe</span>
+              </base-button>
             </div>
 
-            <file-embed v-else-if="release.download_url"
+            <div>
+              <base-button @click="showModal('subscribe')"
+                           type="primary"
+                           size="sm"
+                           :disabled="!!release.download_url">
+                <i :class="onetimeButtonIconClass" style="font-size:14px;"></i>
+                <span>Purchase</span>
+              </base-button>
+            </div>
+
+            <file-embed v-if="release.download_url"
                         :channel_id="channel.channel_id"
                         :display_url="release.payload_url"
                         :download_url="release.download_url">

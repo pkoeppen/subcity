@@ -11,10 +11,6 @@
 
       <template>
 
-        <img src="@/assets/img/logo_alpha.svg" class="d-block mx-auto" style="height:44px;width:auto;">
-
-        <hr>
-
         <template v-if="action">
           <h1 class="text-success text-center m-0">$ {{ action.amount / 100 }} / mo</h1>
           <div class="text-uppercase text-center">{{ action.title }}</div>
@@ -107,10 +103,10 @@
         </div>
         <!-- /secured by auth0 -->
 
-        <base-button type="primary" class="w-100 mb-2 mt-4" @click="r()">Ready</base-button>
+<!--         <base-button type="primary" class="w-100 mb-2 mt-4" @click="r()">Ready</base-button>
         <base-button type="primary" class="w-100 mb-2" @click="l()">Loading</base-button>
         <base-button type="primary" class="w-100 mb-2" @click="s()">Success</base-button>
-        <base-button type="primary" class="w-100 mb-2" @click="e()">Error</base-button>
+        <base-button type="primary" class="w-100 mb-2" @click="e()">Error</base-button> -->
 
       </template>
     </card>

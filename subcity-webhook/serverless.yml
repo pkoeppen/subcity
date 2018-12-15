@@ -4,28 +4,19 @@ plugins:
   - serverless-webpack
   - serverless-offline
 
-package:
-  individually: true
-
 custom:
   serverless-offline:
     port: 3003
   webpack:
     webpackConfig: ./webpack.config.js
+    includeModules: true
 
 provider:
   name: aws
   runtime: nodejs8.10
   region: us-east-1
   stage: ${opt:stage, "dev"}
-  environment:
-
-    ### DynamoDB
-
-    DYNAMODB_TABLE_SUBSCRIBERS: subscribers-dev
-    DYNAMODB_TABLE_CHANNELS: channels-dev
-    DYNAMODB_TABLE_SYNDICATES: syndicates-dev
-    DYNAMODB_TABLE_PURCHASES: purchases-dev
+  environment: ${file(../env.yml):${opt:stage, "dev"}}
 
   iamRoleStatements:
     - Effect: Allow
@@ -48,6 +39,6 @@ functions:
     handler: handler.inbound
     events:
       - http:
-          path: api/inbound
+          path: /
           method: post
           cors: true

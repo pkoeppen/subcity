@@ -1,9 +1,9 @@
-import { without } from "lodash";
+import without from "lodash/without";
 import { generateID } from "../shared";
-import stripe from "stripe";
+import Stripe from "stripe";
 import AWS from "aws-sdk";
 
-stripe = stripe(process.env.STRIPE_KEY_PRIVATE);
+const stripe = Stripe(process.env.STRIPE_KEY_PRIVATE);
 AWS.config.update({ region: "us-east-1" });
 const DynamoDB = new AWS.DynamoDB.DocumentClient();
 
@@ -99,7 +99,7 @@ const handlerInbound = (event, context, callback) => {
 
   // Dispatches Stripe events to their appropriate handlers.
 
-  body = JSON.parse(event.body);
+  const body = JSON.parse(event.body);
   const type = body.type;
   return (dispatch[type] || noop)(body, callback);
 };
@@ -108,9 +108,7 @@ const handlerInbound = (event, context, callback) => {
 ////////////////////////////////////////////////////
 
 
-module.exports = {
-  inbound: handlerInbound
-};
+export { handlerInbound as inbound };
 
 
 ////////////////////////////////////////////////////

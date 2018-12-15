@@ -98,11 +98,8 @@ const getReleaseBySlug = (root, args, ctx, ast) => {
           }
         };
 
-        //const { Items: purchases } = await DynamoDB.query(params).promise();
-        //
-        const purchases = [{ release_id: release.release_id }];
-        //
-
+        const { Items: purchases } = await DynamoDB.query(params).promise()
+        
         for (let i = 0; i < purchases.length; i++) {
 
           let purchase = purchases[i];
@@ -118,7 +115,7 @@ const getReleaseBySlug = (root, args, ctx, ast) => {
 
             release.download_url = await promisify(callback => S3.getSignedUrl("getObject", params, callback));
             break;
-          } else if (purchase.start_time < release.created_at < purchase.end_time) {
+          } else if (purchase.start_time < release.created_at && release.created_at < purchase.end_time) {
             
             // Purchased as part of a subscription.
 
