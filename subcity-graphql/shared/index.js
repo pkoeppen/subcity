@@ -9,7 +9,7 @@ const buildDynamoDBQuery = require("./build-db-query");
 const sanitize = require("./sanitize");
 const depthLimit = require("./depth-limit");
 const getPrincipalID = require("./get-principal-id");
-const parseDescription = require("./parse-description");
+const parseMarkdown = require("./parse-markdown");
 const curateSets = require("./curate-sets");
 
 
@@ -26,6 +26,6 @@ module.exports = {
   sanitize,
   depthLimit,
   getPrincipalID,
-  parseDescription,
+  parseMarkdown,
   curateSets
 };

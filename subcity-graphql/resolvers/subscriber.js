@@ -3,7 +3,9 @@ const {
   curateSets,
   DynamoDB
 } = require("../shared");
-const { getSyndicateById } = require("./syndicate");
+const {
+  getSyndicateById
+} = require("./syndicate");
 
 
 ///////////////////////////////////////////////////

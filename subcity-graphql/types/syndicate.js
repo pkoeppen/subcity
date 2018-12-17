@@ -29,10 +29,12 @@ const SyndicateType = new GraphQLObjectType({
 
     // Non-editable.
 
-    created_at:       { type: new GraphQLNonNull(GraphQLInt) },
+    created_at:       { type: new GraphQLNonNull(GraphQLFloat) },
     profile_url:      { type: new GraphQLNonNull(GraphQLString) },
-    earnings_total:   { type: new GraphQLNonNull(GraphQLInt) },
-    cut_total:        { type: new GraphQLNonNull(GraphQLFloat) },
+    earnings_total:   { type: new GraphQLNonNull(GraphQLInt) },    // This is how much the syndicate has ever made.
+    earnings_cut:     { type: new GraphQLNonNull(GraphQLFloat) },  // This is how much the requesting channel has made with this syndicate.
+    projected_month:  { type: new GraphQLNonNull(GraphQLFloat) },  // This is simply subscribers.length * subscription_rate.
+    projected_cut:    { type: new GraphQLNonNull(GraphQLFloat) },  // This is projected_month / channels.length.
     subscriber_count: { type: new GraphQLNonNull(GraphQLInt) },
     currency:         { type: new GraphQLNonNull(GraphQLString) },
     is_subscribed:    { type: GraphQLBoolean },

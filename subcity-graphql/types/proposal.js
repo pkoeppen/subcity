@@ -29,7 +29,7 @@ const ProposalType = new GraphQLObjectType({
 
     // Non-editable.
 
-    created_at:            { type: new GraphQLNonNull(GraphQLInt) },
+    created_at:            { type: new GraphQLNonNull(GraphQLFloat) },
     expires:            { type: new GraphQLNonNull(GraphQLString) },
     proposal_status:    { type: new GraphQLNonNull(GraphQLString) }, // [pending, approved, rejected]
     profile_url:        { type: GraphQLString },

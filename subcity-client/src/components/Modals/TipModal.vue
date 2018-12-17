@@ -24,7 +24,7 @@
         </base-input>
 
         <div class="text-uppercase text-center">
-          <div>{{ channel.title }}</div>
+          <div>{{ node.title }}</div>
           <small class="text-muted">One-time donation</small>
         </div>
 
@@ -109,10 +109,10 @@ export default {
       description: "Whether to show the modal."
     },
 
-    channel: {
+    node: {
       type: Object,
       required: true,
-      description: "Object corresponding to the channel being viewed."
+      description: "Object corresponding to the channel/syndicate being viewed."
     }
 
   },
@@ -191,11 +191,11 @@ export default {
     // Confirm Subscribe Button
 
     subscribeModalHeaderText() {
-      return `${this.channel.is_subscribed ? "Cancel " : ""}Subscription - ${this.channel.title}`;
+      return `${this.node.is_subscribed ? "Cancel " : ""}Subscription - ${this.node.title}`;
     },
 
     confirmButtonText() {
-      if (this.channel.is_subscribed) { return "Unsubscribe"; }
+      if (this.node.is_subscribed) { return "Unsubscribe"; }
       return "Confirm";
     },
 

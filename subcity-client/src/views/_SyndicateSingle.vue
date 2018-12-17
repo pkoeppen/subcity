@@ -10,7 +10,7 @@
             <!-- profile image -->
             <div class="col-lg-5" ref="profileColumn">
               <div class="ratio-1-1 position-relative">
-                <div v-if="channel.is_nsfw" class="nsfw-pin">
+                <div v-if="syndicate.is_nsfw" class="nsfw-pin">
                   <svg viewbox="0 0 100 100">
                     <polygon points="0,0 100,0 100,100"/>
                   </svg>
@@ -18,7 +18,7 @@
                 </div>
                 <card class="profile border-0 rounded-0" shadow body-classes="h-100 m-4 p-0 position-relative">
                   
-                  <img :src="channel.profile_url"
+                  <img :src="syndicate.profile_url"
                   class="img-fluid w-100"
                   v-show="profileImageLoaded"
                   v-on:load="profile.state = 'loaded'"
@@ -69,7 +69,7 @@
 
               <div class="h-100 d-flex flex-column justify-content-between">
                 <div>
-                  <h2 class="display-header display-2 pr-2" style="border-right:2px solid #ced4da;">{{ channel.title }}</h2>
+                  <h2 class="display-header display-2 pr-2" style="border-right:2px solid #ced4da;">{{ syndicate.title }}</h2>
                   <div class="text-muted">
                     <a class="mr-2" href="#">https://maiden.agency</a>
                     <a class="mr-2" href="#">https://foo.bar</a>
@@ -78,7 +78,7 @@
 
                 
 
-                <p v-html="channel.description" class="block-with-text"></p>
+                <p v-html="syndicate.description" class="block-with-text"></p>
 
                 <div v-show="content.state !== 'loading'">
 
@@ -92,7 +92,7 @@
                       <i :class="subscribeButtonIconClass" style="font-size:14px;"></i>
                       <span v-show="!loading">
                         <span>{{ subscribeButtonText }}</span>
-                        <span v-show="!channel.is_subscribed" class="text-muted ml-1">${{ channel.subscription_rate / 100 }}</span>
+                        <span v-show="!syndicate.is_subscribed" class="text-muted ml-1">${{ syndicate.subscription_rate / 100 }}</span>
                       </span>
                     </base-button>
                     <base-button @click="showModal('tip')"
@@ -107,9 +107,9 @@
                   </div>
                   <!-- /subscriber buttons -->
 
-                  <!-- channel buttons -->
+                  <!-- syndicate buttons -->
                   <div v-else class="d-flex">
-                    <base-button @click="showModal('invite')"
+                    <base-button @click="showModal('tip')"
                                  type="primary"
                                  size="lg"
                                  class="flex-fill"
@@ -118,14 +118,14 @@
                       <span v-show="!loading">Invite to syndicate</span>
                     </base-button>
                   </div>
-                  <!-- /channel buttons -->
+                  <!-- /syndicate buttons -->
 
                 </div>
               </div>
 
             </div>
           </div>
-          <!-- /channel title, description -->
+          <!-- /syndicate title, description -->
 
         </div>
         <!-- /row -->
@@ -135,27 +135,13 @@
 
             <div class="d-flex my-5 align-items-center">
               <hr class="flex-fill m-0">
-              <h4 class="heading my-0 mx-3 text-muted">Overview</h4>
-              <hr class="flex-fill m-0">
-            </div>
-
-              <p v-html="channel.overview" class="px-3 text-justify"></p>
-
-          </div>
-        </div>
-
-        <div v-if="channel.payload_url" class="row">
-          <div class="col-12">
-
-            <div class="d-flex my-5 align-items-center">
-              <hr class="flex-fill m-0">
               <h4 class="heading my-0 mx-3 text-muted">Payload</h4>
               <hr class="flex-fill m-0">
             </div>
 
-            <!-- TODO: correct download url -->
+            <!-- TODO: Fix download_url -->
 
-            <file-embed :display_url="channel.payload_url"
+            <file-embed :display_url="syndicate.payload_url"
                         :download_url="`https://s3.amazonaws.com/subcity-bucket-out-dev/channels/1DbsTgA6NFF4hd0H/payload/lannister.jpg`">
             </file-embed>
 
@@ -167,63 +153,60 @@
             
             <div class="d-flex my-5 align-items-center">
               <hr class="flex-fill m-0">
-              <h4 class="heading my-0 mx-3 text-muted">Releases</h4>
+              <h4 class="heading my-0 mx-3 text-muted">Channels</h4>
               <hr class="flex-fill m-0">
             </div>
-            <paginator-release
-                v-if="((channel || {}).releases || []).length"
-                type="display"
-                :releases="(channel || {}).releases || []"
-                :channel_slug="(channel || {}).slug || ''"
-                :perPage="9">
-            </paginator-release>
+
+            <paginator-channel
+              v-if="((syndicate || {}).channels || []).length">  
+            </paginator-channel>
+
             <div v-else class="text-center">
-              <span>No releases to display.</span>
+              <span>No channels to display.</span>
             </div>
 
           </div>
         </div>
 
-
     </div>
     <!-- /container -->
 
     <!-- modal.subscribe -->
-    <subscribe-modal :show.sync="modal.subscribe" :type="'channel'" :node="channel" @refresh="fetchChannel"></subscribe-modal>
+    <subscribe-modal :show.sync="modal.subscribe" :type="'syndicate'" :node="syndicate" @refresh="fetchSyndicate"></subscribe-modal>
     <!-- /modal.subscribe -->
 
     <!-- modal.tip -->
-    <tip-modal :show.sync="modal.tip" :node="channel"></tip-modal>
+    <tip-modal :show.sync="modal.tip" :node="syndicate"></tip-modal>
     <!-- /modal.tip -->
 
-    <!-- modal.invite -->
-    <invite-modal :show.sync="modal.invite" :channel="channel" :syndicates="invitableSyndicates"></invite-modal>
-    <!-- /modal.invite -->
+    <!-- modal.merge -->
+    <merge-modal :show.sync="modal.merge" :syndicate="syndicate" :syndicates="mergeableSyndicates"></merge-modal>
+    <!-- /modal.merge -->
 
   </section>
 </template>
 
 <script>
 
-import PaginatorRelease from "@/components/Paginators/PaginatorRelease.vue";
+import PaginatorChannel from "@/components/Paginators/PaginatorChannel.vue";
 import FileEmbed from "@/components/FileEmbed.vue";
 import { ContentLoader } from "vue-content-loader";
 import BaseModal from "@/components/Base/BaseModal.vue";
 import SubscribeModal from "@/components/Modals/SubscribeModal.vue";
 import TipModal from "@/components/Modals/TipModal.vue";
-import InviteModal from "@/components/Modals/InviteModal.vue";
+import MergeModal from "@/components/Modals/MergeModal.vue";
 import auth from "@/auth/";
 
 export default {
 
   components: {
-    PaginatorRelease,
+    PaginatorChannel,
     FileEmbed,
     ContentLoader,
     BaseModal,
     SubscribeModal,
     TipModal,
-    InviteModal
+    MergeModal
   },
 
   data() {
@@ -237,36 +220,26 @@ export default {
       data: {
         state: "ready"
       },
-
-      // TODO: Delete the above in favor of the below
-
-      state: {
-        content: "loading",
-        data: "ready",
-        profile: "loading",
-        ownSyndicates: "ready"
-      },
-
-      channel: {
+      syndicate: {
         releases: new Array(9)
       },
       modal: {
         subscribe: false,
         tip: false,
-        invite: false
+        merge: false
       },
       authenticated: auth.isAuthenticated(),
       role: auth.getRole(),
-      invitableSyndicates: []
+      mergeableSyndicates: []
     }
   },
 
   mounted() {
-    this.fetchChannel().then(() => this.fetchOwnSyndicates());
+    this.fetchSyndicate().then(() => this.fetchOwnSyndicates());
   },
 
   watch: {
-    "$route": "fetchChannel"
+    "$route": "fetchSyndicate"
   },
 
   computed: {
@@ -283,17 +256,18 @@ export default {
 
     loading() {
       return (this.data.state === "loading" ||
-              this.content.state === "loading" ||
-              this.state.ownSyndicates === "loading");
+              this.content.state === "loading");
     },
+
     success() {
       return (this.data.state === "success");
     },
+
     error() {
       return (this.data.state === "error" ||
-              this.content.state === "error" ||
-              this.state.ownSyndicates === "error");
+              this.content.state === "error");
     },
+
     busy() {
       return (this.loading || this.success || this.error);
     },
@@ -301,19 +275,19 @@ export default {
     // Subscribe/Tip Buttons
 
     subscribeButtonText() {
-      if (this.channel.is_subscribed) { return "Unsubscribe"; }
+      if (this.syndicate.is_subscribed) { return "Unsubscribe"; }
       return "Subscribe";
     },
 
     subscribeButtonIconClass() {
       if (this.loading) { return "fas fa-sync-alt fa-spin"; }
-      if (this.channel.is_subscribed) { return "fas fa-step-backward text-danger mr-1"; }
+      if (this.syndicate.is_subscribed) { return "fas fa-step-backward text-danger mr-1"; }
       if (this.role === "channel") { return "fas fa-plus text-success"; }
       return "fas fa-forward text-success mr-1";
     },
 
     subscribeButtonDisabled() {
-      return (this.loading || this.channel.subscribed_through_syndicate);
+      return (this.loading);
     },
 
     tipButtonIconClass() {
@@ -321,17 +295,15 @@ export default {
       return "fas fa-dollar-sign text-success mr-1 ml-0";
     },
 
-    // Syndicate Invite Button
+    // Syndicate Merge Modal
 
-    syndicateInviteButtonDisabled() {
-      return (this.loading || this.invitableSyndicates.length < 1);
+    syndicateMergeButtonDisabled() {
+      return this.mergeableSyndicates.length < 1;
     },
 
-    syndicateInviteButtonIconClass() {
-      if (this.loading) { return "fas fa-sync-alt fa-spin"; }
-      return "fas fa-plus text-success";
+    mergeModalHeaderText() {
+      return `Merge Request - ${this.syndicate.title}`;
     }
-
   },
 
 
@@ -346,9 +318,9 @@ export default {
 
           if (!this.authenticated) {
             let action = {
-              subscribe: `channel:${this.channel.channel_id}`,
-              amount: this.channel.subscription_rate,
-              title: this.channel.title
+              subscribe: `syndicate:${this.syndicate.syndicate_id}`,
+              amount: this.syndicate.subscription_rate,
+              title: this.syndicate.title
             };
             this.$bus.emit("subscribe", action);
 
@@ -366,11 +338,11 @@ export default {
           this.modal.tip = true;
           break;
 
-        case "invite":
+        case "merge":
 
-          // Show the invite-to-syndicate modal.
+          // Show the merge invite modal.
 
-          this.modal.invite = true;
+          this.modal.merge = true;
           break;
       }
     },
@@ -383,8 +355,8 @@ export default {
         this.data.state      = "ready";
         this.modal.subscribe = false;
         this.modal.tip       = false;
-        this.modal.invite    = false;
-        this.fetchChannel();
+        this.modal.merge     = false;
+        this.fetchSyndicate();
 
       } else {
 
@@ -394,7 +366,7 @@ export default {
       }
     },
 
-    fetchChannel() {
+    fetchSyndicate() {
       this.data.state = "loading";
 
       const slug = this.$route.params.slug;
@@ -413,43 +385,33 @@ export default {
 
       const query = `
         query($slug: String!${roleString1}) {
-          getChannelBySlug(slug: $slug${roleString2}) {
-            channel_id,
+          getSyndicateBySlug(slug: $slug${roleString2}) {
+            syndicate_id,
             slug,
             profile_url,
             payload_url,
             description,
-            overview,
             title,
             is_nsfw,
             subscription_rate,
             is_subscribed,
-            subscribed_through_syndicate,
-            releases {
-              slug,
+            channels {
+              channel_id,
               title,
               profile_url
-            },
-            syndicates {
-              syndicate_id,
-              title,
-              channels {
-                channel_id
-              }
             }
           }
         }
       `;
 
-      const url = `/api/${role ? "private" : "public"}`;
-
+      const url = `/api/${role ? "private" : "public"}`
       return this.$http.post(url,
         { query, vars: { slug }},
         { headers: this.$getHeaders() })
       .then(response => {
         if (response.data.errors) {
 
-          // Error (channel not found).
+          // Error.
 
           throw new Error(response.data.errors[0].message);
           //this.$router.push("/404");
@@ -457,8 +419,8 @@ export default {
 
         // Success.
 
-        const channel      = response.data.data.getChannelBySlug;
-        this.channel       = channel;
+        const syndicate    = response.data.data.getSyndicateBySlug;
+        this.syndicate     = syndicate;
         this.content.state = "loaded";
         this.data.state    = "ready";
 
@@ -470,13 +432,11 @@ export default {
     fetchOwnSyndicates() {
 
       // If channel is logged in, fetch their syndicates. This is
-      // used in conjunction with the "Invite to Syndicate" button.
+      // used in conjunction with the "Merge With Syndicate" button.
 
       if (!this.authenticated || this.role !== "channel") {
         return;
       }
-
-      this.state.ownSyndicates = "loading";
 
       const query = `
         query($channel_id: ID!) {
@@ -490,7 +450,7 @@ export default {
               proposals {
                 proposal_status,
                 action,
-                _channel_id
+                _syndicate_id
               }
             }
           }
@@ -505,7 +465,6 @@ export default {
 
           // Error.
 
-          this.state.ownSyndicates = "error";
           throw new Error(response.data.errors[0].message);
         }
 
@@ -513,26 +472,22 @@ export default {
 
         var syndicates = response.data.data.getChannelById.syndicates;
 
-        // Remove syndicates of which the channel being viewed is already a member,
-        // or to which the channel has already been invited.
+        // Remove this syndicate (the one being viewed) as well as any that
+        // already contain a merge proposal from the list of mergeable syndicates.
 
-        syndicates = syndicates.filter(({ channels, proposals }) => {
+        syndicates = syndicates.filter(({ syndicate_id, proposals }) => {
 
-          // These booleans are in reference to the channel
-          // currently being viewed (not the one logged in).
-
-          const alreadyMemberOfSyndicate  = (channels.map(({ channel_id }) => channel_id).indexOf(this.channel.channel_id) > -1);
-          const alreadyHasInviteProposal = (proposals.filter(({ proposal_status, action, _channel_id }) => {
+          const isSelf = (syndicate_id === this.syndicate.syndicate_id);
+          const alreadyHasMergeProposal = (proposals.filter(({ proposal_status, action, _syndicate_id }) => {
             return (proposal_status !== "rejected" &&
-                    action === "invite" &&
-                    _channel_id === this.channel.channel_id)
+                    action === "merge" &&
+                    _syndicate_id === this.syndicate.syndicate_id)
           }).length > 0);
 
-          return (!alreadyMemberOfSyndicate && !alreadyHasInviteProposal);
+          return (!isSelf && !alreadyHasMergeProposal);
         });
 
-        this.invitableSyndicates = syndicates;
-        this.state.ownSyndicates = "ready";
+        this.mergeableSyndicates = syndicates;
       });
     }
 

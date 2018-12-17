@@ -17,7 +17,8 @@ export default {
     maxLengthShort: 16,
     maxLengthGeneral: 38,
     maxLengthExtended: 76,
-    maxLengthDescription: 720,
+    maxLengthDescription: 500,
+    maxLengthOverview: 2000,
     slugRegex: new RegExp(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   },
 

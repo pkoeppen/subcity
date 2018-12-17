@@ -128,8 +128,8 @@ export default {
       };
       
       const query = `
-        mutation($data: RespondToInviteInput!) {
-          respondToInvite(data: $data) {
+        mutation($data: RespondToSyndicateInviteInput!) {
+          respondToSyndicateInvite(data: $data) {
             syndicate_id
           }
         }

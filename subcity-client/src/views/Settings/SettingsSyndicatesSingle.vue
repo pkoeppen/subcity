@@ -29,11 +29,11 @@
             <div class="col-lg-8 col-md-6 my-2 my-sm-3" :style="`height:${profileImageHeight}px;`">
               <div class="py-4 h-100" style="border-top: 2px solid #EEEEEE;border-bottom: 2px solid #EEEEEE;`">
                 <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Monthly profit:</small>
+                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Monthly profit (projected):</small>
                   <span class="text-success">{{ displayEarningsMonth }}</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Monthly cut:</small>
+                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Monthly cut (projected):</small>
                   <span class="text-success">{{ displayCutMonth }}</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
@@ -53,7 +53,7 @@
                   <span>{{ displaySubscriberCount }}</span>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
-                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Channels:</small>
+                  <small class="text-uppercase"><i class="fas fa-caret-right mr-2"></i>Member channels:</small>
                   <span>{{ displayChannelCount }}</span>
                 </div>
               </div>
@@ -255,9 +255,9 @@ export default {
 
       // Formatted display for the syndicate's monthly earnings.
 
-      return (typeof this.syndicate.earnings_month !== "number")
+      return (typeof this.syndicate.projected_month !== "number")
              ? `--`
-             : `$ ${this.syndicate.earnings_month}`;
+             : `$ ${this.syndicate.projected_month}`;
     },
 
     displayEarningsTotal() {
@@ -273,18 +273,18 @@ export default {
 
       // Formatted display for each channel's monthly cut.
 
-      return (typeof this.syndicate.cut_month !== "number")
+      return (typeof this.syndicate.projected_cut !== "number")
              ? `--`
-             : `$ ${this.syndicate.cut_month}`;
+             : `$ ${this.syndicate.projected_cut}`;
     },
 
     displayCutTotal() {
 
       // Formatted display for this channel's total cut (all time).
 
-      return (typeof this.syndicate.cut_total !== "number")
+      return (typeof this.syndicate.earnings_cut !== "number")
              ? `--`
-             : `$ ${this.syndicate.cut_total}`;
+             : `$ ${this.syndicate.earnings_cut}`;
     },
 
     displaySubscriberCount() {
@@ -332,7 +332,9 @@ export default {
               created_at,
               description,
               earnings_total,
-              cut_total,
+              earnings_cut,
+              projected_month,
+              projected_cut,
               is_nsfw,
               is_unlisted,
               payload_url,
@@ -349,7 +351,7 @@ export default {
                 _syndicate_id,
                 _channel_id,
                 profile_url,
-                created,
+                created_at,
                 expires,
                 proposal_status,
                 action,
@@ -377,7 +379,7 @@ export default {
         }
       `;
 
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars },
         { headers: this.$getHeaders() })
       .then(response => {
@@ -418,7 +420,7 @@ export default {
           }
         }
       `;
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {
@@ -447,7 +449,7 @@ export default {
           leaveSyndicate(data: $data)
         }
       `;
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {
@@ -480,7 +482,7 @@ export default {
         }
       `;
       
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
+      return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
       .then(response => {

@@ -11,46 +11,42 @@ const handlerPublic = (event, context, callback) => {
   try {
     const { query, vars } = JSON.parse(event.body);
     graphql(schema.public, query, null, event.requestContext.identity, vars)
-    .then(
-      result => {
+    .then(result => {
 
-        if (result.errors) {
-          throw result.errors[0];
-        }
-
-        console.log(`[public][200] ${Object.keys(result.data)[0]}`);
-        return callback(null, {
-          headers: {
-            "Access-Control-Allow-Origin": "*" // change
-          },
-          statusCode: 200,
-          body: JSON.stringify(result)
-        });
-      },
-      error => {
-        console.log(`[public][400] Error: ${error}`);
-        return callback(null, {
-          headers: {
-            "Access-Control-Allow-Origin": "*" // change
-          },
-          statusCode: 400,
-          body: error.message
-        });
+      if (result.errors) {
+        throw result.errors[0];
       }
-    )
+
+      console.log(`[public][200] ${Object.keys(result.data)[0]}`);
+      return callback(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*" // change
+        },
+        statusCode: 200,
+        body: JSON.stringify(result)
+      });
+
+    })
     .catch(error => {
-      throw error;
+      console.error(`[public][400] Error: ${error.stack}`);
+      return callback(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*" // change
+        },
+        statusCode: 400,
+        body: error.message
+      });
     });
   }
 
   catch(error) {
-    console.error(`[public][400] Error: ${error}`);
+    console.error(`[public][500] Error: ${error.stack}`);
     callback(null, {
       headers: {
         "Access-Control-Allow-Origin": "*" // change
       },
-      statusCode: 400,
-      body: error.message
+      statusCode: 500,
+      body: "Something went wrong."
     });
   }
 };
@@ -64,46 +60,42 @@ const handlerPrivate = (event, context, callback) => {
   try {
     const { query, vars, ctx } = sanitizeQuery(event);
     graphql(schema.private, query, null, ctx, vars)
-    .then(
-      result => {
+    .then(result => {
 
-        if (result.errors) {
-          throw result.errors[0];
-        }
-
-        console.log(`[private][200] ${Object.keys(result.data)[0]}`);
-        return callback(null, {
-          headers: {
-            "Access-Control-Allow-Origin": "*" // change
-          },
-          statusCode: 200,
-          body: JSON.stringify(result)
-        });
-      },
-      error => {
-        console.log(`[private][400] Error: ${error}`);
-        return callback(null, {
-          headers: {
-            "Access-Control-Allow-Origin": "*" // change
-          },
-          statusCode: 400,
-          body: error.message
-        });
+      if (result.errors) {
+        throw result.errors[0];
       }
-    )
+
+      console.log(`[private][200] ${Object.keys(result.data)[0]}`);
+      return callback(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*" // change
+        },
+        statusCode: 200,
+        body: JSON.stringify(result)
+      });
+
+    })
     .catch(error => {
-      throw error;
+      console.error(`[private][400] Error: ${error.stack}`);
+      callback(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*" // change
+        },
+        statusCode: 400,
+        body: error.message
+      });
     });
   }
 
   catch(error) {
-    console.error(`[private][400] Error: ${error}`);
+    console.error(`[private][500] Error: ${error.stack}`);
     callback(null, {
       headers: {
         "Access-Control-Allow-Origin": "*" // change
       },
-      statusCode: 400,
-      body: error.message
+      statusCode: 500,
+      body: "Something went wrong."
     });
   }
 };

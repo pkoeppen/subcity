@@ -44,11 +44,27 @@ const sanitize = (data) => {
 
       // Description - Gets markdownified.
 
-      if (!str.length || str.length > 720) {
+      if (!str.length || str.length > 500) {
         throw new Error("Description input invalid.");
       } else {
         try {
           const html = md.renderInline(str);
+          return JSON.stringify({ raw: str, rendered: html });
+        } catch(error) {
+          throw new Error("Markdown input invalid.");
+        }
+      }
+    },
+
+    overview(str) {
+
+      // Overview - Gets markdownified.
+
+      if (!str.length || str.length > 2000) {
+        throw new Error("Overview input invalid.");
+      } else {
+        try {
+          const html = md.render(str);
           return JSON.stringify({ raw: str, rendered: html });
         } catch(error) {
           throw new Error("Markdown input invalid.");

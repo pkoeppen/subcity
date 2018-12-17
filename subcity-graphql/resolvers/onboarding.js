@@ -168,7 +168,7 @@ const handleSubscriberSignup = async (root, args) => {
     rollback(["stripe"], {
       user_id: stripe_id
     })(error);
-    return false;
+    throw new Error(error);
   }
 
   try {

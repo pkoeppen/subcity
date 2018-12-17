@@ -29,7 +29,7 @@
             <div class="col-lg-4 col-md-6 my-2 my-sm-3">
               <div class="w-100 tile shadow" style="padding-bottom:100%; background: #EEEEEE;">
                 <div class="d-flex justify-content-center align-items-center controls">
-                 ${{ channel.earnings_month || 0 }} / mo<br>
+                 ${{ (channel.subscription_rate * (channel.subscribers || []).length) / 100 || 0 }} / mo<br>
                  ${{ (channel.earnings_total || 0) / 100 }} total
                 </div>
               </div>
@@ -68,7 +68,7 @@
                   <span class="text-muted">{{ $config.maxLengthGeneral - (accumulator.title || "").length }}</span>
                 </label>
                 <base-input v-model="accumulator.title"
-                            :valid="isValid(accumulator.title)"
+                            :valid="notEmpty(accumulator.title)"
                             :maxlength="$config.maxLengthGeneral"
                             class="mb-3"
                             placeholder="Title"
@@ -82,7 +82,7 @@
                   <span class="text-muted">{{ $config.maxLengthGeneral - (accumulator.slug || "").length }}</span>
                 </label>
                 <base-input v-model="accumulator.slug"
-                            :valid="$config.slugRegex.test(accumulator.slug) && isValid(accumulator.slug)"
+                            :valid="$config.slugRegex.test(accumulator.slug) && notEmpty(accumulator.slug)"
                             :maxlength="$config.maxLengthGeneral"
                             class="mb-3"
                             placeholder="unique-channel-slug"
@@ -107,12 +107,36 @@
                             class="form-control"
                             :maxlength="$config.maxLengthDescription"
                             :class="descriptionInputTextareaClass"
-                            rows="7"
+                            rows="5"
                             placeholder="Description..."
                             spellcheck="false">
                   </textarea>
                 </div>
                 <!-- /description -->
+
+                <!-- overview -->
+                <label class="d-flex justify-content-between w-100">
+                  <span>Overview</span>
+                  <span class="text-muted">{{ $config.maxLengthOverview - (accumulator.overview || "").length }}</span>
+                </label>
+                <div :class="overviewInputGroupClass">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text" :class="overviewInputTextareaClass">
+                      <slot name="addonLeft">
+                        <i :class="dataFieldsIconClass"></i>
+                      </slot>
+                    </span>
+                  </div>
+                  <textarea v-model="accumulator.overview"
+                            class="form-control"
+                            :maxlength="$config.maxLengthOverview"
+                            :class="overviewInputTextareaClass"
+                            rows="8"
+                            placeholder="Overview (optional)..."
+                            spellcheck="false">
+                  </textarea>
+                </div>
+                <!-- /overview -->
 
                 <!-- payload -->
                 <label class="d-flex justify-content-between w-100">
@@ -173,12 +197,12 @@
 
               </form>
               <!-- /form -->
-
+<!-- 
               <hr>
               <base-button type="primary" style="min-width:162px;" @click="r()">Ready</base-button>
               <base-button type="primary" style="min-width:162px;" @click="l()">Loading</base-button>
               <base-button type="primary" style="min-width:162px;" @click="s()">Success</base-button>
-              <base-button type="primary" style="min-width:162px;" @click="e()">Error</base-button>
+              <base-button type="primary" style="min-width:162px;" @click="e()">Error</base-button> -->
 
             </div>
           </div>
@@ -222,6 +246,7 @@ export default {
         title: null,
         slug: null,
         description: null,
+        overview: null,
         payload_url: null,
         is_nsfw: false,
         is_unlisted: false,
@@ -276,9 +301,9 @@ export default {
     // Data Fields
 
     dataInputValid() {
-      return (this.isValid(this.accumulator.title) !== false &&
-              this.isValid(this.accumulator.description) !== false &&
-              this.isValid(this.accumulator.slug) !== false &&
+      return (this.notEmpty(this.accumulator.title) !== false &&
+              this.notEmpty(this.accumulator.description) !== false &&
+              this.notEmpty(this.accumulator.slug) !== false &&
               this.$config.slugRegex.test(this.accumulator.slug));
     },
     dataChanged() {
@@ -292,15 +317,24 @@ export default {
       return "fas fa-angle-double-right";
     },
     descriptionInputGroupClass() {
-      const valid = this.isValid(this.accumulator.description);
+      const valid = this.notEmpty(this.accumulator.description);
       if (valid === false) { return "has-danger form-group input-group"; }
       if (valid === true) { return "has-success form-group input-group"; }
       return "form-group input-group";
     },
     descriptionInputTextareaClass() {
-      const valid = this.isValid(this.accumulator.description);
+      const valid = this.notEmpty(this.accumulator.description);
       if (valid === false) { return "is-invalid"; }
       if (valid === true) { return "is-valid"; }
+    },
+    overviewInputGroupClass() {
+      if (this.data.state === "success") { return "has-success form-group input-group"; }
+      if (this.data.state === "error")   { return "has-danger form-group input-group"; }
+      return "form-group input-group";
+    },
+    overviewInputTextareaClass() {
+      if (this.data.state === "success") { return "is-valid"; }
+      if (this.data.state === "error")   { return "is-invalid"; }
     },
 
     // Profile Image
@@ -393,10 +427,10 @@ export default {
 
   methods: {
 
-    isValid(field) {
+    notEmpty(field) {
 
-      // "null" = neutral
-      // "true" = success
+      // "null"  = neutral
+      // "true"  = success
       // "false" = danger
 
       if (field === null) { return null; }
@@ -405,7 +439,8 @@ export default {
       // General data.state fallback.
 
       if (this.data.state === "success") { return true; }
-      if (this.data.state === "error") { return false; }
+      if (this.data.state === "error")   { return false; }
+
       return null;
     },
 
@@ -504,6 +539,7 @@ export default {
             slug,
             title,
             description,
+            overview,
             earnings_total,
             is_nsfw,
             is_unlisted,

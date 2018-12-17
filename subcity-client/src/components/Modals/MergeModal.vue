@@ -5,29 +5,28 @@
               body-classes="p-0"
               modal-classes="modal-dialog-centered modal-sm">
 
-    <h6 slot="header" class="modal-title" id="modal-title-notification">{{ subscribeModalHeaderText }}</h6>
-    
-    <card type="secondary" shadow
-        header-classes="bg-white pb-5"
-        body-classes="p-lg-5"
-        class="border-0">
+    <h6 slot="header" class="modal-title" id="modal-title-notification">{{ headerText }}</h6>
+
+      <card type="secondary" shadow
+            header-classes="bg-white pb-5"
+            body-classes="p-lg-5"
+            class="border-0">
 
       <template>
 
-        <h1 class="text-success text-center m-0">$ {{ node.subscription_rate / 100 }} / mo</h1>
-        <div class="text-uppercase text-center">{{ node.title }}</div>
+        <form @submit="handleMergeRequest" :class="[{ 'no-click': busy }]">
 
-        <hr>
-        <p class="m-0">CHANNEL'S CALL TO ACTION GOES HERE. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-        <hr>
-
-        <form @submit="handleSubscribe" :class="[{ 'no-click': busy }]">
-
-          <!-- TODO: add a message-to-channel field -->
+          <select class="mb-4" v-model="hostSyndicate">
+            <option v-for="syndicate in syndicates"
+                    class="dropdown-item"
+                    :value="syndicate.syndicate_id">
+              {{ syndicate.title }}
+            </option>
+          </select>
 
           <div class="text-center">
             <base-button :type="confirmButtonType" class="w-100" native-type="submit" :disabled="loading">
-              <span v-if="!busy">{{ confirmButtonText }}</span>
+              <span v-if="!busy">Confirm</span>
               <i v-if="busy" :class="confirmButtonIconClass"></i>
             </base-button>
           </div>
@@ -46,19 +45,13 @@ import BaseModal from "@/components/Base/BaseModal.vue";
 
 export default {
 
-  name: "subscribe-modal",
+  name: "invite-modal",
 
   components: {
     BaseModal
   },
 
   props: {
-
-    type: {
-      type: String,
-      required: true,
-      description: "(channel|syndicate)"
-    },
 
     show: {
       type: Boolean,
@@ -67,18 +60,25 @@ export default {
       description: "Whether to show the modal."
     },
 
-    node: {
+    syndicate: {
       type: Object,
       required: true,
-      description: "Object corresponding to the channel/syndicate being viewed."
+      description: "Object corresponding to the syndicate being viewed."
     },
+
+    syndicates: {
+      type: Array,
+      required: true,
+      description: "Array of syndicates to which the syndicate can be invited."
+    }
 
   },
 
 
   data () {
     return {
-      state: "ready"
+      state: "ready",
+      hostSyndicate: null
     }
   },
 
@@ -103,15 +103,10 @@ export default {
       return this.loading || this.success || this.error;
     },
 
-    // Confirm Subscribe Button
+    // Syndicate Merge Invite
 
-    subscribeModalHeaderText() {
-      return `${this.node.is_subscribed ? "Cancel " : ""}Subscription - ${this.node.title}`;
-    },
-
-    confirmButtonText() {
-      if (this.node.is_subscribed) { return "Unsubscribe"; }
-      return "Confirm";
+    headerText() {
+      return `Merge Request - ${this.syndicate.title}`;
     },
 
     confirmButtonDisabled() {
@@ -148,23 +143,23 @@ export default {
       }
     },
 
-    handleSubscribe(event) {
+    handleMergeRequest(event) {
       event.preventDefault();
 
-      this.state = "loading";
-      const type = this.type;
-
       const data = {
-        [`_${type}_id`]: this.node[`${type}_id`],
-        subscribe: !this.node.is_subscribed
+        syndicate_id: this.hostSyndicate,
+        _syndicate_id: this.syndicate.syndicate_id,
+        action: "merge_request"
       };
 
       const query = `
-        mutation($data: ModifySubscriptionInput!) {
-          modifySubscription(data: $data)
+        mutation($data: ProposalInput!) {
+          createProposal(data: $data) {
+            proposal_id
+          }
         }
       `;
-
+      
       return this.$http.post("/api/private",
         { query, vars: { data }},
         { headers: this.$getHeaders() })
@@ -185,6 +180,7 @@ export default {
         setTimeout(() => this.resetState(true), 2000);
       });
     }
+
   }
 };
 

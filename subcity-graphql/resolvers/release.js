@@ -9,7 +9,7 @@ const {
   DynamoDB,
   S3,
   buildDynamoDBQuery,
-  parseDescription,
+  parseMarkdown,
   sanitize
 } = require("../shared");
 
@@ -36,7 +36,7 @@ const getReleaseById = (root, args) => {
   return DynamoDB.get(params).promise()
   .then(({ Item: release }) => {
     if (release) {
-      release.description = parseDescription(release, true);
+      release.description = parseMarkdown(release, true);
       return release;
     } else {
       throw new Error("Release not found.");
@@ -134,7 +134,7 @@ const getReleaseBySlug = (root, args, ctx, ast) => {
 
       // Deserialize the release description.
 
-      release.description = parseDescription(release.description);
+      release.description = parseMarkdown(release.description);
       return release;
     }
   })
@@ -186,7 +186,7 @@ const getReleasesByIdArray = (root, args) => {
   return Promise.all(chunked).then(results => {
     return flatten(results.map(({ Responses }) => Responses[process.env.DYNAMODB_TABLE_RELEASES]))
     .map(release => {
-      release.description = parseDescription(release.description, true);
+      release.description = parseMarkdown(release.description, true);
       return release;
     });
   });

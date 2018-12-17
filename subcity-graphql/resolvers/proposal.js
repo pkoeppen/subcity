@@ -13,7 +13,7 @@ const {
   DynamoDB,
   buildDynamoDBQuery,
   sanitize,
-  parseDescription,
+  parseMarkdown,
   curateSets,
   stripeUtilities
 } = require("../shared");
@@ -77,7 +77,7 @@ const getProposalsByIdArray = (root, args) => {
     const proposals = flatten(results.map(({ Responses }) => Responses[process.env.DYNAMODB_TABLE_PROPOSALS]));
     return proposals.map(proposal => {
       if (proposal.description) {
-        proposal.description = parseDescription(proposal.description);
+        proposal.description = parseMarkdown(proposal.description);
       }
       proposal = checkExpired(proposal);
       proposal = curateSets(proposal);
@@ -377,7 +377,8 @@ function checkExpired(proposal) {
 
 
 function syndicateHasChannel(syndicate, channel_id) {
-  return (syndicate.channels.indexOf(channel_id) >= 0);
+  const channels = Object.keys(syndicate.channels);
+  return (channels.indexOf(channel_id) >= 0);
 }
 
 
@@ -402,14 +403,14 @@ function identicalProposalAlreadyExists(proposals, data) {
 
 function approvalTriggered(proposal, syndicate) {
   const approvalsCount = proposal.approvals.length + 1;
-  const channelsCount = syndicate.channels.length;
+  const channelsCount = Object.keys(syndicate.channels).length;
   return (approvalsCount / channelsCount >= MAJORITY_RATIO);
 }
 
 
 function rejectionTriggered(proposal, syndicate) {
   const rejectionsCount = proposal.rejections.length + 1;
-  const channelsCount = syndicate.channels.length;
+  const channelsCount = Object.keys(syndicate.channels).length;
   return (rejectionsCount / channelsCount >= MAJORITY_RATIO);
 }
 
@@ -463,7 +464,7 @@ async function handleMergeApproval(syndicate, proposal) {
 
   // Add all slave syndicate channels to master syndicate.
 
-  const b = channels.map(channel_id => {
+  const b = Object.keys(channels).map(channel_id => {
     console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Adding channel ${channel_id} to syndicate ${master_syndicate_id}`);
     return DynamoDB.update({
       TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
@@ -477,7 +478,7 @@ async function handleMergeApproval(syndicate, proposal) {
 
   // Remove slave syndicate from all slave syndicate channels.
 
-  const c = channels.map(channel_id => {
+  const c = Object.keys(channels).map(channel_id => {
     console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Removing syndicate ${slave_syndicate_id} from channel ${channel_id}`);
     return DynamoDB.update({
       TableName: process.env.DYNAMODB_TABLE_CHANNELS,
@@ -489,7 +490,7 @@ async function handleMergeApproval(syndicate, proposal) {
 
   // Add master syndicate to all slave syndicate channels.
 
-  const d = channels.map(channel_id => {
+  const d = Object.keys(channels).map(channel_id => {
     console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Adding syndicate ${master_syndicate_id} to channel ${channel_id}`);
     return DynamoDB.update({
       TableName: process.env.DYNAMODB_TABLE_CHANNELS,
@@ -537,7 +538,7 @@ function handleInvite(syndicate, proposal) {
     _channel_id: channel_id
   } = proposal;
 
-  if (includes(channels, channel_id)) {
+  if (includes(Object.keys(channels), channel_id)) {
 
     // If the channel to be invited is already a member of the syndicate...
     // (i.e., if someone technically inclined is being tricky...)
@@ -565,7 +566,7 @@ function handleDissolve({ syndicate_id, channels, proposals }) {
 
   // Remove syndicate from all member channels.
 
-  const a = Promise.all(channels.map(channel_id => {
+  const a = Promise.all(Object.keys(channels).map(channel_id => {
     console.log(`[DynamoDB:CHANNELS] Dissolve: Removing syndicate ${syndicate_id} from channel ${channel_id}`);
     return DynamoDB.update({
       TableName: process.env.DYNAMODB_TABLE_CHANNELS,

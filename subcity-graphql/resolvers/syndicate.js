@@ -13,7 +13,7 @@ const {
   buildDynamoDBQuery,
   S3,
   sanitize,
-  parseDescription,
+  parseMarkdown,
   curateSets,
   stripeUtilities: {
     createStripePlan,
@@ -44,7 +44,7 @@ const getSyndicateById = (root, args, ctx, ast) => {
     if (syndicate) {
       syndicate = curateSets(syndicate);
       syndicate.earnings_month = syndicate.subscribers.length * syndicate.subscription_rate;
-      syndicate.description = parseDescription(syndicate.description, true);
+      syndicate.description = parseMarkdown(syndicate.description, true);
       return syndicate;
     } else {
       throw new Error();
@@ -65,8 +65,6 @@ const getSyndicateBySlug = (root, args, ctx, ast) => {
   const slug          = args.slug;
   const is_private    = ctx.private && args.settings;
 
-  const selections = ast.fieldNodes[0].selectionSet.selections.map(({ name: { value }}) => value);
-
   const params = {
     TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
     FilterExpression: "slug = :slug",
@@ -83,25 +81,23 @@ const getSyndicateBySlug = (root, args, ctx, ast) => {
     const syndicate = curateSets(syndicates[0]);
 
     if (is_private) {
-
-      // If this is a private request...
-
-      if (syndicate.channels.indexOf(channel_id) < 0) {
+      
+      if (Object.keys(syndicate.channels).indexOf(channel_id) < 0) {
 
         // If requesting channel is not a member of the syndicate...
 
         throw new Error("(!) No such member channel.");
       }
 
-      // TODO: Mangle this here data here
+      // Mangle some data for presentation.
 
-      syndicate.description    = parseDescription(syndicate.description, true);
-      syndicate.earnings_month = syndicate.subscribers.length * syndicate.subscription_rate;
-      syndicate.cut_month      = 99999;
-      syndicate.cut_total      = 99999;
+      syndicate.description     = parseMarkdown(syndicate.description, true);
+      syndicate.earnings_cut    = syndicate.channels[channel_id].earnings_cut;
+      syndicate.projected_month = syndicate.subscribers.length * syndicate.subscription_rate; // TODO: subtract fees
+      syndicate.projected_cut   = syndicate.projected_month / Object.keys(syndicate.channels).length;
 
     } else {
-      syndicate.description = parseDescription(syndicate.description);
+      syndicate.description = parseMarkdown(syndicate.description);
       delete syndicate.earnings_total;
     }
 
@@ -112,6 +108,8 @@ const getSyndicateBySlug = (root, args, ctx, ast) => {
 
       syndicate.is_subscribed = includes(syndicate.subscribers, subscriber_id);
     }
+
+    syndicate.channels = Object.keys(syndicate.channels);
 
     return syndicate;
   })
@@ -252,7 +250,12 @@ const createSyndicate = async (root, args, ctx, ast) => {
     profile_url: `${process.env.DATA_HOST}/${process.env.S3_BUCKET_OUT}/syndicates/${syndicate_id}/profile.jpeg`,
     earnings_total: 0,
     subscriber_count: 0,
-    channels: DynamoDB.createSet(["__DEFAULT__", channel_id]),
+    channels: {
+      [channel_id]: {
+        earnings_cut: 0,
+        member_since: new Date().getTime()
+      }
+    },
     proposals: DynamoDB.createSet(["__DEFAULT__"]),
     subscribers: DynamoDB.createSet(["__DEFAULT__"])
   };
@@ -419,7 +422,17 @@ const respondToSyndicateInvite = async (root, args, ctx, ast) => {
     approved
   } = args.data;
 
-  const channel = await getChannelById(null, { channel_id });
+  // Get the channel.
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
+    Key: { channel_id }
+  };
+
+  let {
+    Item: channel
+  } = await DynamoDB.get(params).promise();
+  channel = curateSets(channel);
 
   if (!channelHasInvite(channel, syndicate_id)) {
 
@@ -444,8 +457,17 @@ const respondToSyndicateInvite = async (root, args, ctx, ast) => {
     b = DynamoDB.update({
       TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
       Key: { syndicate_id },
-      UpdateExpression: "ADD channels :channel_id",
-      ExpressionAttributeValues: { ":channel_id": DynamoDB.createSet([channel_id]) }
+      UpdateExpression: "SET #channels.#channel_id = :channel_object",
+      ExpressionAttributeNames: {
+        "#channels": "channels",
+        "#channel_id": channel_id
+      },
+      ExpressionAttributeValues: {
+        ":channel_id": {
+          earnings_cut: 0,
+          member_since: Date.now()
+        }
+      }
     }).promise();
   }
 
@@ -511,9 +533,6 @@ function channelHasInvite(channel, syndicate_id) {
 
   // Determines whether the channel has actually received
   // an invite to join the syndicate in question.
-
-  console.log(channel.invitations)
-  console.log(syndicate_id)
 
   return includes(channel.invitations, syndicate_id);
 }

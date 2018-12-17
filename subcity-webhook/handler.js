@@ -189,47 +189,47 @@ async function distributeEarningsToSyndicate(data) {
       channels
     }
   } = await DynamoDB.get(params).promise();
-  channels = without(channels.values, "__DEFAULT__");
 
   // Subtract sub.city fee, then divide by number of member channels.
 
+  const member_count  = Object.keys(channels).length;
   const stripe_cut    = (amount_paid * 0.029) + 30;
-  const payout_amount = Math.floor(((amount_paid - stripe_cut) * (1 - SUBCITY_FEE_AMOUNT)) / channels.length);
+  const payout_amount = Math.floor(((amount_paid - stripe_cut) * (1 - SUBCITY_FEE_AMOUNT)) / member_count);
 
-  const toTransfer = channels.reduce((acc, channel_id) => {
+  const transfers = Object.keys(channels).reduce((acc, channel_id) => {
 
     // Create Stripe transfer, to be executed when the funds
     // become available in the platform account.
 
-    let account_id = `acct_${channel_id}`;
+    const account_id = `acct_${channel_id}`;
     console.log(`${"[Stripe] ".padEnd(30, ".")} Sending transfer (${payout_amount} cents) to Connect account ${account_id}`);
-    let a = stripe.transfers.create({
+    const transfer = stripe.transfers.create({
       amount: payout_amount,
       currency: "usd", // Change to syndicate/channel currency
       source_transaction: charge_id,
       destination: account_id,
     });
 
-    // Update DynamoDB.
+    // Update channel earnings.
 
-    // TODO: Attach earnings to syndicate somehow
-    
-    let b = Promise.resolve();
-    // let b = DynamoDB.update({
-    //   TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    //   Key: {
-    //     channel_id
-    //   },
-    //   UpdateExpression: `SET earnings_total  = earnings_total + :amount_paid`,
-    //   ExpressionAttributeValues: {
-    //     ":amount_paid": amount_paid
-    //   }
-    // }).promise();
-
-    return acc.concat([a,b]);
+    channels[channel_id].earnings_cut += payout_amount;
+    return acc.concat([transfer]);
   }, []);
 
-  return Promise.all(toTransfer)
+  // Update DynamoDB with channel earnings.
+
+  const earningsUpdate = DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+    Key: {
+      syndicate_id
+    },
+    UpdateExpression: `SET channels = :channels`,
+    ExpressionAttributeValues: {
+      ":channels": channels
+    }
+  }).promise();
+
+  return Promise.all(transfers.concat(earningsUpdate))
   .then(() => ({ channels, subscriber_id, syndicate_id }))
 }
 

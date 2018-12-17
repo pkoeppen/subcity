@@ -6,7 +6,7 @@ const {
   S3,
   buildDynamoDBQuery,
   getIDHash,
-  parseDescription,
+  parseMarkdown,
   curateSets,
   stripeUtilities
 } = require("../shared");
@@ -27,16 +27,6 @@ const {
 
 
 const getChannelById = async (root, args, ctx, ast) => {
-  const params2 = {
-      Bucket: process.env.S3_BUCKET_OUT,
-
-      // Remove filename.
-
-      //Prefix: "channels/1DbsTgA6NFF4hd0H/payload"
-    };
-
-    const foo = await S3.listObjects(params2).promise().catch(error => console.log(error));
-    console.log(foo)
 
   // Always private, called from the channel settings page.
 
@@ -54,7 +44,8 @@ const getChannelById = async (root, args, ctx, ast) => {
     if (channel) {
       channel = curateSets(channel);
       channel.earnings_month = channel.subscribers.length * channel.subscription_rate;
-      channel.description = parseDescription(channel.description, true);
+      channel.description = parseMarkdown(channel.description, true);
+      channel.overview = parseMarkdown(channel.overview, true);
       return channel;
     } else {
       throw new Error();
@@ -103,9 +94,10 @@ const getChannelBySlug = (root, args, ctx, ast) => {
       delete channel.subscriber_pays;
       delete channel.is_unlisted;
 
-      // Deserialize the channel description.
+      // Deserialize the channel description and overview.
 
-      channel.description = parseDescription(channel.description);
+      channel.description = parseMarkdown(channel.description);
+      channel.overview    = parseMarkdown(channel.overview);
 
       if (subscriber_id) {
 

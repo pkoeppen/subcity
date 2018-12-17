@@ -44,11 +44,6 @@ export default {
     BaseAlert
   },
   props: {
-    channel_id: {
-      type: String,
-      required: true,
-      default: ""
-    },
     display_url: {
       type: String,
       required: true,

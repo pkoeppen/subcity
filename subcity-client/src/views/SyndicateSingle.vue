@@ -8,7 +8,7 @@
           <div class="row">
 
             <!-- profile image -->
-            <div class="col-lg-6" ref="profileColumn">
+            <div class="col-lg-5" ref="profileColumn">
               <div class="ratio-1-1 position-relative">
                 <div v-if="syndicate.is_nsfw" class="nsfw-pin">
                   <svg viewbox="0 0 100 100">
@@ -45,71 +45,84 @@
           </div>
           <!-- /profile image -->
 
-          <!-- syndicate title, description -->
-          <div class="col-lg-6 mt-5 mt-lg-0" :height="profileHeight">
+          <!-- channel title, description -->
+          <div class="col-lg-7 mt-5 mt-lg-0 pl-lg-5" :height="profileHeight">
 
-            <div class="ratio-1-1-lg position-relative">
-              <div class="frame w-100">
+            <!-- DELETE THIS CSS CLASS <div class="ratio-1-1-lg position-relative"> -->
+            <div class="h-100 position-relative">
 
-                <div class="subframe d-flex flex-column">
-
-                  <content-loader v-if="content.state === 'loading'"
-                  primaryColor="#EEEEEE"
-                  secondaryColor="#DDDDDD"
-                  :speed=".5"
-                  :width="100"
-                  :height="82">
-                    <rect x="0" y="0" width="100" height="22" />
-                    <rect x="0" y="27" width="92" height="5" />
-                    <rect x="0" y="37" width="98" height="5" />
-                    <rect x="0" y="47" width="94" height="5" />
-                    <rect x="0" y="57" width="90" height="5" />
-                    <rect x="0" y="67" width="98" height="5" />
-                    <rect x="0" y="77" width="94" height="5" />
-                    <rect x="0" y="87" width="88" height="5" />
-                  </content-loader>
-
-                  <h2 class="display-header display-2 pr-2" style="border-right:2px solid #ced4da;">{{ syndicate.title }}</h2>
-                  <p v-html="syndicate.description" class="block-with-text"></p>
-                </div>
-
-                <!-- if role is not channel (subscriber or null) -->
-                <div v-if="role !== 'channel'" :class="[{ 'no-click': busy }]" class="subscribe-buttons-container text-uppercase">
-                  <base-button @click="showModal('subscribe')"
-                               type="primary"
-                               size="lg"
-                               class="mr-1 flex-fill"
-                               style="border-radius: 0 5px 5px 0;"
-                               :disabled="loading">
-                    <i :class="subscribeButtonIconClass" style="font-size:14px;"></i>
-                    <span v-show="!loading">{{ subscribeButtonText }}</span>
-                  </base-button>
-                  <base-button @click="showModal('onetime')"
-                               type="primary"
-                               size="lg"
-                               class="mt-0 px-5"
-                               :disabled="loading">
-                    <i :class="onetimeButtonIconClass" style="font-size:14px;"></i>
-                    <span v-show="!loading">Once</span>
-                  </base-button>
-                </div>
-                <!-- /if role is not channel -->
-
-                <!-- else if role is channel -->
-                <div v-else class="d-flex">
-                  <base-button @click="showModal('merge')"
-                               type="primary"
-                               size="lg"
-                               class="flex-fill"
-                               style="border-radius: 0 5px 5px 0;"
-                               :disabled="loading || syndicateMergeButtonDisabled">
-                    <i :class="subscribeButtonIconClass" style="font-size:14px;"></i>
-                    <span v-show="!loading">Merge syndicate</span>
-                  </base-button>
-                </div>
-                <!-- /else if role is channel -->
-
+              <div class="d-flex flex-column">
+                <content-loader v-if="content.state === 'loading'"
+                                primaryColor="#EEEEEE"
+                                secondaryColor="#DDDDDD"
+                                :speed=".5"
+                                :width="100"
+                                :height="82">
+                  <rect x="0" y="0" width="100" height="22" />
+                  <rect x="0" y="29" width="92" height="5" />
+                  <rect x="0" y="39" width="98" height="5" />
+                  <rect x="0" y="49" width="94" height="5" />
+                  <rect x="0" y="59" width="90" height="5" />
+                  <rect x="0" y="69" width="98" height="5" />
+                </content-loader>
               </div>
+
+              <div class="h-100 d-flex flex-column justify-content-between">
+                <div>
+                  <h2 class="display-header display-2 pr-2" style="border-right:2px solid #ced4da;">{{ syndicate.title }}</h2>
+                  <div class="text-muted">
+                    <a class="mr-2" href="#">https://maiden.agency</a>
+                    <a class="mr-2" href="#">https://foo.bar</a>
+                  </div>
+                </div>
+
+                
+
+                <p v-html="syndicate.description" class="block-with-text"></p>
+
+                <div v-show="content.state !== 'loading'">
+
+                  <!-- subscriber buttons -->
+                  <div v-if="role !== 'channel'" :class="[{ 'no-click': busy }]" class="d-flex">
+                    <base-button @click="showModal('subscribe')"
+                                 type="primary"
+                                 size="lg"
+                                 class="mr-2 flex-fill"
+                                 :disabled="subscribeButtonDisabled">
+                      <i :class="subscribeButtonIconClass" style="font-size:14px;"></i>
+                      <span v-show="!loading">
+                        <span>{{ subscribeButtonText }}</span>
+                        <span v-show="!syndicate.is_subscribed" class="text-muted ml-1">${{ syndicate.subscription_rate / 100 }}</span>
+                      </span>
+                    </base-button>
+                    <base-button @click="showModal('tip')"
+                                 type="primary"
+                                 size="lg"
+                                 class="mt-0 px-5"
+                                 :disabled="loading">
+                      <div class="position-absolute" style="left: 3px; right: 3px; top: 3px; bottom: 3px; border-radius: 4px; border: 1px solid #687482;"></div>
+                      <i :class="tipButtonIconClass" style="font-size:14px;"></i>
+                      <span v-show="!loading">Tip</span>
+                    </base-button>
+                  </div>
+                  <!-- /subscriber buttons -->
+
+                  <!-- syndicate buttons -->
+                  <div v-else class="d-flex">
+                    <base-button @click="showModal('merge')"
+                                 type="primary"
+                                 size="lg"
+                                 class="flex-fill"
+                                 :disabled="syndicateMergeButtonDisabled">
+                      <i :class="syndicateMergeButtonIconClass" style="font-size:14px;"></i>
+                      <span v-show="!loading">Merge request</span>
+                    </base-button>
+                  </div>
+                  <!-- /syndicate buttons -->
+
+                </div>
+              </div>
+
             </div>
           </div>
           <!-- /syndicate title, description -->
@@ -125,10 +138,12 @@
               <h4 class="heading my-0 mx-3 text-muted">Payload</h4>
               <hr class="flex-fill m-0">
             </div>
-            <file-embed v-if="syndicate.payload_url" :syndicate_id="syndicate.syndicate_id" :url="syndicate.payload_url"></file-embed>
-            <div v-else class="text-center">
-              <span>No payload to display.</span>
-            </div>
+
+            <!-- TODO: Fix download_url -->
+
+            <file-embed :display_url="syndicate.payload_url"
+                        :download_url="`https://s3.amazonaws.com/subcity-bucket-out-dev/channels/1DbsTgA6NFF4hd0H/payload/lannister.jpg`">
+            </file-embed>
 
           </div>
         </div>
@@ -153,168 +168,19 @@
           </div>
         </div>
 
-
     </div>
     <!-- /container -->
 
     <!-- modal.subscribe -->
-    <base-modal :show.sync="modal.subscribe"
-                 body-classes="p-0"
-                 modal-classes="modal-dialog-centered modal-sm">
-      <h6 slot="header" class="modal-title" id="modal-title-notification">{{ subscribeModalHeaderText }}</h6>
-      <card type="secondary" shadow
-          header-classes="bg-white pb-5"
-          body-classes="p-lg-5"
-          class="border-0">
-
-        <template>
-
-          <h1 class="text-success text-center m-0">$ {{ syndicate.subscription_rate / 100 }} / mo</h1>
-          <div class="text-uppercase text-center">{{ syndicate.title }}</div>
-
-          <hr>
-          <p class="m-0">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-          <hr>
-
-          <form @submit="handleSubscribe" :class="[{ 'no-click': busy }]">
-
-            <!-- TODO: add a message-to-syndicate field -->
-
-            <div class="text-center">
-              <base-button :type="confirmButtonType" class="w-100" native-type="submit" :disabled="loading">
-                <span v-if="!busy">{{ confirmSubscriptionButtonText }}</span>
-                <i v-if="busy" :class="confirmButtonIconClass"></i>
-              </base-button>
-            </div>
-
-          </form>
-
-        </template>
-      </card>
-    </base-modal>
+    <subscribe-modal :show.sync="modal.subscribe" :type="'syndicate'" :node="syndicate" @refresh="fetchSyndicate"></subscribe-modal>
     <!-- /modal.subscribe -->
 
-    <!-- modal.onetime -->
-    <base-modal :show.sync="modal.onetime"
-                 body-classes="p-0"
-                 modal-classes="modal-dialog-centered modal-sm">
-      <card type="secondary" shadow
-        header-classes="bg-white pb-5"
-        body-classes="p-lg-5"
-        class="border-0">
-                  
-        <template>
-
-          <img src="@/assets/img/logo_alpha.svg" class="d-block mx-auto" style="height:44px;width:auto;">
-
-          <hr>
-
-          <!-- onetime-guest -->
-          <div v-show="!authenticated">
-            <h1 class="text-success text-center">$ {{ onetime.hasFocus ? "--" : onetimeDisplayAmount }}</h1>
-            <base-input v-model="onetimeDisplayAmount"
-                        @keypress="onlyNumbers"
-                        @focus="onetime.hasFocus = true"
-                        @blur="onetime.hasFocus = false"
-                        alternative
-                        class="mb-3"
-                        placeholder="Amount"
-                        :addon-left-icon="loading ? 'fas fa-sync-alt fa-spin' : 'fas fa-dollar-sign'">
-            </base-input>
-
-            <div class="text-uppercase text-center">
-              <div>{{ syndicate.title }}</div>
-              <small class="text-muted">One-time donation</small>
-            </div>
-
-            <hr>
-
-            <form @submit="handleOnetime" role="form">
-
-              <div class="form-group input-group input-group-alternative">
-                <div class="input-group-prepend">
-                  <span class="input-group-text" style="font-size: 0.75rem;">
-                    <i :class="loading ? 'fas fa-sync-alt fa-spin' : 'fas fa-credit-card'"></i>
-                  </span>
-                </div>
-                <div ref="cardNumberOnetime" style="padding:.9rem 0;"></div>
-              </div>
-
-              <div class="d-flex">
-                <div class="form-group input-group input-group-alternative mr-3 mb-0">
-                  <div ref="cardExpiryOnetime" style="padding:.9rem .75rem;"></div>
-                </div>
-
-                <div class="form-group input-group input-group-alternative mb-0">
-                  <div ref="cardCvcOnetime" style="padding:.9rem .75rem;"></div>
-                </div>
-              </div>
-
-              <div class="text-center my-4">
-                <base-button :type="confirmButtonType" class="w-100" native-type="submit" :disabled="confirmButtonDisabled">
-                  <span v-if="!busy">Confirm</span>
-                  <i v-if="busy" :class="confirmButtonIconClass"></i>
-                </base-button>
-              </div>
-            </form>
-          </div>
-          <!-- /onetime-guest -->
-
-          <!-- onetime-authorized -->
-          <div v-show="authenticated">
-            authed
-          </div>
-          <!-- /onetime-authorized -->
-
-          <!-- secured by auth0 -->
-          <div class="d-flex mt-4 mt-lg-4 align-items-center">
-            <hr class="flex-fill m-0">
-            <div class="text-muted text-center text-uppercase mx-2">
-              <small><i class="fas fa-fingerprint mr-1" style="font-size:12px;"></i>Secured by <a href="https://auth0.com">Auth0</a></small>
-            </div>
-            <hr class="flex-fill m-0">
-          </div>
-          <!-- /secured by auth0 -->
-
-        </template>
-      </card>
-    </base-modal>
-    <!-- /modal.onetime -->
+    <!-- modal.tip -->
+    <tip-modal :show.sync="modal.tip" :node="syndicate"></tip-modal>
+    <!-- /modal.tip -->
 
     <!-- modal.merge -->
-    <base-modal :show.sync="modal.merge"
-                 body-classes="p-0"
-                 modal-classes="modal-dialog-centered modal-sm">
-        <h6 slot="header" class="modal-title" id="modal-title-notification">{{ mergeModalHeaderText }}</h6>
-          <card type="secondary" shadow
-            header-classes="bg-white pb-5"
-            body-classes="p-lg-5"
-            class="border-0">
-
-        <template>
-
-          <form @submit="handleMergeRequest" :class="[{ 'no-click': busy }]">
-
-            <select class="mb-4" v-model="hostSyndicate">
-              <option v-for="syndicate in mergeableSyndicates"
-                      class="dropdown-item"
-                      :value="syndicate.syndicate_id">
-                {{ syndicate.title }}
-              </option>
-            </select>
-
-            <div class="text-center">
-              <base-button :type="confirmButtonType" class="w-100" native-type="submit" :disabled="loading">
-                <span v-if="!busy">Confirm</span>
-                <i v-if="busy" :class="confirmButtonIconClass"></i>
-              </base-button>
-            </div>
-
-          </form>
-
-        </template>
-      </card>
-    </base-modal>
+    <merge-modal :show.sync="modal.merge" :syndicate="syndicate" :syndicates="mergeableSyndicates"></merge-modal>
     <!-- /modal.merge -->
 
   </section>
@@ -326,30 +192,10 @@ import PaginatorChannel from "@/components/Paginators/PaginatorChannel.vue";
 import FileEmbed from "@/components/FileEmbed.vue";
 import { ContentLoader } from "vue-content-loader";
 import BaseModal from "@/components/Base/BaseModal.vue";
+import SubscribeModal from "@/components/Modals/SubscribeModal.vue";
+import TipModal from "@/components/Modals/TipModal.vue";
+import MergeModal from "@/components/Modals/MergeModal.vue";
 import auth from "@/auth/";
-
-const classes = {
-  base: "form-control",
-  invalid: "has-danger"
-};
-
-const style = {
-  base: {
-    color: "#8898aa",
-    "::placeholder": {
-      color: "#adb5bd"
-    }
-  },
-  invalid: {
-    color: "#f2353b"
-  }
-};
-
-const stripe = Stripe("pk_test_7yS5dDjXxrthjZg8ninXVLUK");
-const elements = stripe.elements();
-const cardNumberOnetime = elements.create("cardNumber", { classes, style });
-const cardExpiryOnetime = elements.create("cardExpiry", { classes, style });
-const cardCvcOnetime = elements.create("cardCvc", { classes, style });
 
 export default {
 
@@ -357,7 +203,10 @@ export default {
     PaginatorChannel,
     FileEmbed,
     ContentLoader,
-    BaseModal
+    BaseModal,
+    SubscribeModal,
+    TipModal,
+    MergeModal
   },
 
   data() {
@@ -376,39 +225,17 @@ export default {
       },
       modal: {
         subscribe: false,
-        onetime: false,
+        tip: false,
         merge: false
       },
-      onetime: {
-        amount: 25,
-        hasFocus: false
-      },
-      cardNumberValid: false,
-      cardExpiryValid: false,
-      cardCvcValid: false,
       authenticated: auth.isAuthenticated(),
       role: auth.getRole(),
-      mergeableSyndicates: [],
-      hostSyndicate: null
+      mergeableSyndicates: []
     }
   },
 
   mounted() {
     this.fetchSyndicate().then(() => this.fetchOwnSyndicates());
-
-    cardNumberOnetime.on("change", ({ complete }) => {
-      this.cardNumberValid = complete;
-    });
-    cardExpiryOnetime.on("change", ({ complete }) => {
-      this.cardExpiryValid = complete;
-    });
-    cardCvcOnetime.on("change", ({ complete }) => {
-      this.cardCvcValid = complete;
-    });
-
-    cardNumberOnetime.mount(this.$refs.cardNumberOnetime);
-    cardExpiryOnetime.mount(this.$refs.cardExpiryOnetime);
-    cardCvcOnetime.mount(this.$refs.cardCvcOnetime);
   },
 
   watch: {
@@ -431,36 +258,21 @@ export default {
       return (this.data.state === "loading" ||
               this.content.state === "loading");
     },
+
     success() {
       return (this.data.state === "success");
     },
+
     error() {
       return (this.data.state === "error" ||
               this.content.state === "error");
     },
+
     busy() {
       return (this.loading || this.success || this.error);
     },
 
-    // Onetime Input Display
-
-    onetimeDisplayAmount: {
-      get() {
-        if (this.onetime.hasFocus) {
-          return this.onetime.amount ? this.onetime.amount.toString() : "";
-        } else {
-          return this.onetime.amount.toFixed(2).replace(/(\d)(?=(\d{3})+(?:\.\d+)?$)/g, "$1,");
-        }
-      },
-      set(newValue) {
-        this.onetime.amount = parseFloat(newValue.replace(/[^\d\.]/g, ""))
-        if (isNaN(newValue)) {
-          this.onetime.amount = 0;
-        }
-      }
-    },
-
-    // Subscribe/Onetime Buttons
+    // Subscribe/Tip Buttons
 
     subscribeButtonText() {
       if (this.syndicate.is_subscribed) { return "Unsubscribe"; }
@@ -474,52 +286,28 @@ export default {
       return "fas fa-forward text-success mr-1";
     },
 
-    onetimeButtonIconClass() {
+    subscribeButtonDisabled() {
+      return (this.loading);
+    },
+
+    tipButtonIconClass() {
       if (this.loading) { return "fas fa-sync-alt fa-spin"; }
-      return "fas fa-dollar-sign text-success mr-1";
+      return "fas fa-dollar-sign text-success mr-1 ml-0";
     },
 
-    // Subscribe Modal
-
-    subscribeModalHeaderText() {
-      return `${this.syndicate.is_subscribed ? "Cancel " : ""}Subscription - ${this.syndicate.title}`;
-    },
-
-    confirmSubscriptionButtonText() {
-      if (this.syndicate.is_subscribed) { return "Unsubscribe"; }
-      return "Confirm";
-    },
-
-    // Syndicate Merge Modal
+    // Merge Button
 
     syndicateMergeButtonDisabled() {
-      return this.mergeableSyndicates.length < 1;
+      return (this.loading || this.mergeableSyndicates.length < 1);
     },
 
-    mergeModalHeaderText() {
-      return `Merge Request - ${this.syndicate.title}`;
-    },
-
-    // Confirm Subscribe Button
-
-    confirmButtonDisabled() {
-      if (this.busy) { return true; }
-      return (!this.cardNumberValid || !this.cardExpiryValid || !this.cardCvcValid);
-    },
-
-    confirmButtonType() {
-      if (this.success) { return "success"; }
-      if (this.error) { return "danger"; }
-      return "default";
-    },
-
-    confirmButtonIconClass() {
+    syndicateMergeButtonIconClass() {
       if (this.loading) { return "fas fa-sync-alt fa-spin"; }
-      if (this.success) { return "fas fa-check"; }
-      if (this.error) { return "fas fa-exclamation-triangle"; }
-      return "d-none";
+      return "fas fa-plus text-success";
     }
   },
+
+
   methods: {
 
     showModal(type) {
@@ -544,15 +332,17 @@ export default {
           }
           break;
 
-        case "onetime":
+        case "tip":
 
           // Show the one-time donation modal.
-          // Note: If the user is not logged in, they will not be prompted
-          // to do so. TODO: Just collect their onetime payment details. Fin.
 
-          this.modal.onetime = true;
+          this.modal.tip = true;
           break;
+
         case "merge":
+
+          // Show the merge invite modal.
+
           this.modal.merge = true;
           break;
       }
@@ -563,11 +353,12 @@ export default {
 
         // Reset input state and reload settings.
 
-        this.data.state = "ready";
+        this.data.state      = "ready";
         this.modal.subscribe = false;
-        this.modal.onetime = false;
-        this.modal.merge = false;
+        this.modal.tip       = false;
+        this.modal.merge     = false;
         this.fetchSyndicate();
+
       } else {
 
         // Reset input state for re-submit.
@@ -614,7 +405,7 @@ export default {
         }
       `;
 
-      const url = `${this.$config.apiHost}/api/${role ? "private" : "public"}`
+      const url = `/api/${role ? "private" : "public"}`
       return this.$http.post(url,
         { query, vars: { slug }},
         { headers: this.$getHeaders() })
@@ -629,10 +420,11 @@ export default {
 
         // Success.
 
-        const syndicate = response.data.data.getSyndicateBySlug;
-        this.syndicate = syndicate;
+        const syndicate    = response.data.data.getSyndicateBySlug;
+        console.log(syndicate.channels)
+        this.syndicate     = syndicate;
         this.content.state = "loaded";
-        this.data.state = "ready";
+        this.data.state    = "ready";
 
       }).catch(error => {        
         console.error(error);
@@ -667,7 +459,7 @@ export default {
         }
       `;
 
-      this.$http.post(`${this.$config.apiHost}/api/private`,
+      this.$http.post("/api/private",
         { query, vars: {} },
         { headers: this.$getHeaders() })
       .then(response => {
@@ -699,95 +491,8 @@ export default {
 
         this.mergeableSyndicates = syndicates;
       });
-    },
-
-    handleSubscribe(event) {
-      event.preventDefault();
-      this.data.state = "loading";
-
-      const data = {
-        _syndicate_id: this.syndicate.syndicate_id,
-        subscribe: !this.syndicate.is_subscribed
-      };
-
-      const query = `
-        mutation($data: ModifySubscriptionInput!) {
-          modifySubscription(data: $data)
-        }
-      `;
-
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
-        { query, vars: { data }},
-        { headers: this.$getHeaders() })
-      .then(response => {
-        if (response.data.errors) {
-
-          // Error.
-
-          this.data.state = "error";
-          setTimeout(() => this.resetState(false), 2000);
-          throw new Error(response.data.errors[0].message);
-        }
-
-        // Success.
-
-        this.data.state = "success";
-        setTimeout(() => this.resetState(true), 2000);
-      });
-    },
-
-    handleOnetime(event) {
-      event.preventDefault();
-      console.log("handling onetime")
-    },
-
-    handleMergeRequest(event) {
-      event.preventDefault();
-
-      const data = {
-        syndicate_id: this.hostSyndicate,
-        _syndicate_id: this.syndicate.syndicate_id,
-        action: "merge_request"
-      };
-
-      const query = `
-        mutation($data: ProposalInput!) {
-          createProposal(data: $data) {
-            proposal_id
-          }
-        }
-      `;
-      
-      return this.$http.post(`${this.$config.apiHost}/api/private`,
-        { query, vars: { data }},
-        { headers: this.$getHeaders() })
-      .then(response => {
-        if (response.data.errors) {
-
-          // Error.
-
-          throw new Error(response.data.errors[0].message);
-        }
-
-        // Success.
-
-      });
-    },
-
-    onlyNumbers(event) {
-
-      // This method only allows numbers to be entered,
-      // doing nothing for all other characters.
-
-      const { charCode } = event;
-      const { target: { value }} = event;
-      const index = value.length - 2;
-      if (charCode < 32 || charCode > 46 && charCode < 58) {
-        return true;
-      } else {
-        event.preventDefault();
-      }
     }
+
   }
 };
 </script>

@@ -15,9 +15,6 @@ const curateSets = item => {
     invitations
   } = item;
 
-  if (channels) {
-    item.channels = without(item.channels.values, "__DEFAULT__");
-  }
   if (releases) {
     item.releases = without(item.releases.values, "__DEFAULT__");
   }
