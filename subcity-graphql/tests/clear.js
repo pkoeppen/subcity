@@ -1,21 +1,97 @@
-require("dotenv").config({ path: `${__dirname}/.env` });
+const {
+  DynamoDB,
+  loadEnv,
+  S3
+} = require("../../shared");
+
+// Load environment variables.
+
+loadEnv("dev").__load__();
+
 const request = require("request");
 const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
-const { DynamoDB } = require("../shared");
 
-////////////////////////////////////////////////////
-////////////////////// CLEAR ///////////////////////
-////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
+////////////////////////// CLEAR ///////////////////////////
+////////////////////////////////////////////////////////////
+
 
 function clear() {
   return Promise.all([
-    clearStripe(),
     clearAuth0(),
-    clearDynamoDB()
+    clearDynamoDB(),
+    clearS3(),
+    clearStripe()
   ])
-  .then(() => console.log(`\nClear successful.`))
-  .catch(error => console.log(`\nClear failed. Error: ${error.message}`))
+  .then(() => console.log(`\nClear successful.\n`))
+  .catch(error => console.log(`\nClear failed.\n${error.stack || error}`))
 };
+
+
+function clearAuth0() {
+
+  // Clears all Auth0 users.
+
+  return getAuth0ManagementToken()
+  .then(getAuth0Users)
+  .then(deleteAuth0Users);
+}
+
+
+function clearDynamoDB() {
+
+  // Clears all DynamoDB tables.
+
+  return Promise.all([
+    deleteChannelsTable(),
+    deleteMembershipsTable(),
+    deletePaymentsTable(),
+    deleteProposalsTable(),
+    deleteReleasesTable(),
+    deleteSlugsTable(),
+    deleteSubscribersTable(),
+    deleteSubscriptionsTable(),
+    deleteSyndicatesTable()
+  ]);
+}
+
+
+async function clearS3() {
+
+  // Clears all keys from both S3 buckets.
+
+  const _0 = S3.listObjects({ Bucket: process.env.S3_BUCKET_IN }).promise()
+  .then(({ Contents: objects }) => {
+
+    return Promise.all(objects.map(({ Key }) => {
+
+      console.log(`${"[S3:IN] ".padEnd(30, ".")} Deleting ${Key}`);
+      return S3.deleteObject({
+        Bucket: process.env.S3_BUCKET_IN,
+        Key
+      }).promise();
+
+    }));
+  });
+
+  const _1 = S3.listObjects({ Bucket: process.env.S3_BUCKET_OUT }).promise()
+  .then(({ Contents: objects }) => {
+
+    return Promise.all(objects.map(({ Key }) => {
+
+      console.log(`${"[S3:OUT] ".padEnd(30, ".")} Deleting ${Key}`);
+      return S3.deleteObject({
+        Bucket: process.env.S3_BUCKET_OUT,
+        Key
+      }).promise();
+
+    }));
+  });
+
+  return Promise.all([_0,_1]);
+}
+
 
 async function clearStripe() {
 
@@ -64,110 +140,22 @@ async function clearStripe() {
 }
 
 
-function clearAuth0() {
-  return getAuth0ManagementToken()
-  .then(getAuth0Users)
-  .then(deleteAuth0Users);
-}
-
-
-function clearDynamoDB() {
-  return Promise.all([
-    deleteSubscribersTable(),
-    deleteChannelsTable(),
-    deleteReleasesTable(),
-    deleteSyndicatesTable(),
-    deleteProposalsTable()
-  ]);
-}
-
-
-function deleteSubscribersTable() {
-  const options = {
-    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS
-  };
-  return DynamoDB.scan(options).promise()
-  .then(({ Items }) => {
-    Items.map(({ subscriber_id }) => {
-      console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Deleting ${subscriber_id}`);
-      return DynamoDB.delete(Object.assign(options, { Key: { subscriber_id }})).promise();
-    });
-  });
-}
-
-
-function deleteChannelsTable() {
-  const options = {
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS
-  };
-  return DynamoDB.scan(options).promise()
-  .then(({ Items }) => {
-    Items.map(({ channel_id }) => {
-      console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Deleting ${channel_id}`);
-      return DynamoDB.delete(Object.assign(options, { Key: { channel_id }})).promise();
-    });
-  });
-}
-
-
-function deleteReleasesTable() {
-  const options = {
-    TableName: process.env.DYNAMODB_TABLE_RELEASES
-  };
-  return DynamoDB.scan(options).promise()
-  .then(({ Items }) => {
-    Items.map(({ channel_id, release_id }) => {
-      console.log(`${"[DynamoDB:RELEASES] ".padEnd(30, ".")} Deleting ${release_id}`);
-      return DynamoDB.delete(Object.assign(options, { Key: { channel_id, release_id }})).promise();
-    });
-  });
-}
-
-
-function deleteSyndicatesTable() {
-  const options = {
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES
-  };
-  return DynamoDB.scan(options).promise()
-  .then(({ Items }) => {
-    Items.map(({ syndicate_id }) => {
-      console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Deleting ${syndicate_id}`);
-      return DynamoDB.delete(Object.assign(options, { Key: { syndicate_id }})).promise();
-    });
-  });
-}
-
-
-function deleteProposalsTable() {
-  const options = {
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS
-  };
-  return DynamoDB.scan(options).promise()
-  .then(({ Items }) => {
-    Items.map(({ syndicate_id, proposal_id }) => {
-      console.log(`${"[DynamoDB:PROPOSALS] ".padEnd(30, ".")} Deleting ${proposal_id}`);
-      return DynamoDB.delete(Object.assign(options, { Key: { syndicate_id, proposal_id }})).promise();
-    });
-  });
-}
-
-
 function getAuth0ManagementToken() {
-  const options = {
+  const params = {
     method: "POST",
-    url: "https://subcity.auth0.com/oauth/token",
+    url: `https://${process.env.AUTH0_DOMAIN}/oauth/token`,
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify({
       client_id: process.env.AUTH0_M2M_CLIENT_ID,
       client_secret: process.env.AUTH0_M2M_CLIENT_SECRET,
-      audience: "https://subcity.auth0.com/api/v2/",
+      audience: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
       grant_type: "client_credentials"
     })
   };
   return new Promise((resolve, reject) => {
-    request(options, (error, response, body) => {
+    request(params, (error, response, body) => {
      if (error) { return reject(error); }
-     else if (response.statusCode !== 200) { return reject(`[${response.statusCode}] ${response.statusMessage}`)}
+     else if (response.statusCode !== 200) { return reject(`[Auth0] ${response.statusCode}: ${response.statusMessage}`)}
      else { resolve( JSON.parse(body).access_token ); }
    });
   });
@@ -175,16 +163,16 @@ function getAuth0ManagementToken() {
 
 
 function getAuth0Users(access_token) {
-  const options = {
+  const params = {
     method: "GET",
-    url: "https://subcity.auth0.com/api/v2/users",
+    url: `https://${process.env.AUTH0_DOMAIN}/api/v2/users`,
     headers: {
       "Authorization": `Bearer ${access_token}`,
       "Content-Type": "application/json; charset=utf-8"
     }
   };
   return new Promise((resolve, reject) => {
-    request(options, (error, response, body) => {
+    request(params, (error, response, body) => {
      if (error) { return reject(error); }
      else if (response.statusCode !== 200) { return reject(`[${response.statusCode}] ${response.statusMessage}`)}
      else { resolve({ users: JSON.parse(body), access_token }); }
@@ -195,9 +183,9 @@ function getAuth0Users(access_token) {
 
 function deleteAuth0Users({ users, access_token }) {
   const toDelete = users.map(({ user_id }) => {
-    const options = {
+    const params = {
       method: "DELETE",
-      url: `https://subcity.auth0.com/api/v2/users/${user_id}`,
+      url: `https://${process.env.AUTH0_DOMAIN}/api/v2/users/${user_id}`,
       headers: {
         "Authorization": `Bearer ${access_token}`,
         "Content-Type": "application/json; charset=utf-8"
@@ -205,10 +193,136 @@ function deleteAuth0Users({ users, access_token }) {
     };
     return new Promise((resolve, reject) => {
       console.log(`${"[Auth0] ".padEnd(30, ".")} Deleting ${user_id}`);
-      request(options, (error, response, body) => resolve("success"));
+      request(params, (error, response, body) => resolve("success"));
     });
   });
   return Promise.all(toDelete);
+}
+
+
+function deleteChannelsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_CHANNELS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ channel_id }) => {
+      console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Deleting ${channel_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { channel_id }})).promise();
+    });
+  });
+}
+
+
+function deleteMembershipsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ channel_id, syndicate_id }) => {
+      console.log(`${"[DynamoDB:MEMBERSHIPS]".padEnd(30, ".")} Deleting ${channel_id}:${syndicate_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { channel_id, syndicate_id }})).promise();
+    });
+  });
+}
+
+
+function deletePaymentsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PAYMENTS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ channel_id, time_created }) => {
+      console.log(`${"[DynamoDB:PAYMENTS]".padEnd(30, ".")} Deleting ${channel_id}:${time_created}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { channel_id, time_created }})).promise();
+    });
+  });
+}
+
+
+function deleteProposalsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ syndicate_id, time_created }) => {
+      console.log(`${"[DynamoDB:PROPOSALS] ".padEnd(30, ".")} Deleting ${syndicate_id}:${time_created}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { syndicate_id, time_created }})).promise();
+    });
+  });
+}
+
+
+function deleteReleasesTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_RELEASES
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ channel_id, time_created }) => {
+      console.log(`${"[DynamoDB:RELEASES] ".padEnd(30, ".")} Deleting ${channel_id}:${time_created}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { channel_id, time_created }})).promise();
+    });
+  });
+}
+
+
+function deleteSlugsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ slug }) => {
+      console.log(`${"[DynamoDB:SLUGS]".padEnd(30, ".")} Deleting ${slug}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { slug }})).promise();
+    });
+  });
+}
+
+
+function deleteSubscribersTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ subscriber_id }) => {
+      console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Deleting ${subscriber_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { subscriber_id }})).promise();
+    });
+  });
+}
+
+
+function deleteSubscriptionsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ subscriber_id, time_created }) => {
+      console.log(`${"[DynamoDB:SUBSCRIPTIONS]".padEnd(30, ".")} Deleting ${subscriber_id}:${time_created}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { subscriber_id, time_created }})).promise();
+    });
+  });
+}
+
+
+function deleteSyndicatesTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ syndicate_id }) => {
+      console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Deleting ${syndicate_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { syndicate_id }})).promise();
+    });
+  });
 }
 
 

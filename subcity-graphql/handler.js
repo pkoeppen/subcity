@@ -105,7 +105,7 @@ const handlerPrivate = (event, context, callback) => {
 
 
 module.exports = {
-  public: handlerPublic,
+  public:  handlerPublic,
   private: handlerPrivate
 };
 

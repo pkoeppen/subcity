@@ -1,5 +1,6 @@
 const {
   GraphQLBoolean,
+  GraphQLFloat,
   GraphQLID,
   GraphQLInt,
   GraphQLList,
@@ -10,63 +11,36 @@ const {
 } = require("graphql");
 
 const {
+
   channel: {
     getChannelsByIdArray
   },
+
   syndicate: {
     getSyndicatesByIdArray
   }
+  
 } = require("../resolvers");
 
-////////////////////////////////////////////////////
+
+const InitializeSubscriberInputType = new GraphQLInputObjectType({
+  name: "InitializeSubscriberInput",
+  fields: () => ({
+
+    email:    { type: new GraphQLNonNull(GraphQLString) },
+    password: { type: new GraphQLNonNull(GraphQLString) },
+    token_id: { type: new GraphQLNonNull(GraphQLString) }
+
+  })
+});
 
 const SubscriberType = new GraphQLObjectType({
   name: "Subscriber",
   fields: () => ({
 
-    // Key.
-
     subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
+    time_created:  { type: new GraphQLNonNull(GraphQLFloat) }
 
-    // Non-editable.
-
-    created_at: { type: new GraphQLNonNull(GraphQLInt) },
-
-    // Edge nodes.
-
-    channels: {
-      type: new GraphQLList(require("./channel").ChannelType),
-      resolve: getChannelsByIdArray
-    },
-    syndicates: {
-      type: new GraphQLList(require("./syndicate").SyndicateType),
-      resolve: getSyndicatesByIdArray
-    }
-  })
-});
-
-const SubscriberPaymentSettingsType = new GraphQLObjectType({
-  name: "SubscriberPaymentSettings",
-  fields: () => ({
-    
-    // card last4
-    // etc
-    subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
-    
-  })
-});
-
-const SubscriberPaymentSettingsInputType = new GraphQLInputObjectType({
-  name: "SubscriberPaymentSettingsInput",
-  fields: () => ({
-
-    // Key.
-
-    subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
-
-    // Stripe token.
-
-    token_id: { type: new GraphQLNonNull(GraphQLString) },
   })
 });
 
@@ -74,28 +48,24 @@ const ModifySubscriptionInputType = new GraphQLInputObjectType({
   name: "ModifySubscriptionInput",
   fields: () => ({
 
-    // Key.
-
     subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
 
     // Subscription to be modified.
     // Note: "_" is there because "channel_id" is reserved.
     // "_syndicate_id" gets it too, just for the sake of uniformity.
 
-    _channel_id: { type: GraphQLString },
+    _channel_id:   { type: GraphQLString },
     _syndicate_id: { type: GraphQLString },
+    subscribe:     { type: new GraphQLNonNull(GraphQLBoolean) }
 
-    // Subscription action - "true" to subscribe, "false" to unsubscribe.
-
-    subscribe: { type: new GraphQLNonNull(GraphQLBoolean) },
   })
 });
 
-////////////////////////////////////////////////////
 
 module.exports = {
+
+  InitializeSubscriberInputType,
   SubscriberType,
-  SubscriberPaymentSettingsType,
-  SubscriberPaymentSettingsInputType,
   ModifySubscriptionInputType
+
 };

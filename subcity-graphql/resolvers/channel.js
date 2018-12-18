@@ -1,5 +1,10 @@
 const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
+
 const {
+  Auth0Utilities: {
+    createAuth0User,
+    getAuth0ManagementToken
+  },
   promisify,
   sanitize,
   DynamoDB,
@@ -8,25 +13,285 @@ const {
   getIDHash,
   parseMarkdown,
   curateSets,
-  stripeUtilities
-} = require("../shared");
+  StripeUtilities: {
+    createStripeAccountObject,
+    createStripeAccount,
+    createStripePlan,
+    createStripeCustomer
+  }
+} = require("../../shared");
+
 const {
   chunk,
   flatten,
   includes,
   intersection
 } = require("lodash");
+
 const {
   getSubscriberById
 } = require("./subscriber");
 
 
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
+module.exports = {
+  assertTokenExists,
+  initializeChannel,
+  // getChannelById,
+  // getChannelBySlug,
+  // getChannelsByIdArray,
+  // getApprovalsByIdArray,
+  // getRejectionsByIdArray,
+  // getChannelsByRange,
+  // getChannelPaymentSettings,
+  // createChannel,
+  // updateChannel,
+  // updateChannelPaymentSettings
+};
+
+////////////////////////////////////////////////////////////
+///////////////////////// QUERIES //////////////////////////
+////////////////////////////////////////////////////////////
 
 
-const getChannelById = async (root, args, ctx, ast) => {
+function assertTokenExists (root, args, ctx, ast) {
+
+  // Assert signup token exists.
+
+  const { token_id } = args;
+  
+  return getSignupToken(token_id)
+  .then(token => !!token);
+}
+
+
+function assertTokenValid (token_id, pin) {
+
+  // Assert signup token and PIN are valid.
+  
+  return getSignupToken(token_id)
+  .then(token => (token ? pin === token.pin : false));
+}
+
+
+function getSignupToken (token_id) {
+
+  // Get signup token.
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_TOKENS,
+    Key: { token_id },
+  };
+
+  return DynamoDB.get(params)
+  .promise().then(({ Item: token }) => token);
+};
+
+
+function deleteSignupToken (token_id) {
+
+  // Delete signup token.
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_TOKENS,
+    Key: { token_id },
+  };
+
+  return DynamoDB.delete(params)
+  .promise()
+  .then(() => true)
+  .catch(error => {
+    console.error(error.stack || error);
+    return false;
+  })
+};
+
+
+async function initializeChannel (root, args, ctx, ast) {
+
+  const { ip_address } = ctx;
+  const data = Object.assign(args.data, { ip_address });
+
+  // Verify that the signup token and PIN are valid.
+
+  if (!await assertTokenValid(data.token_id, data.pin)) {
+    throw new Error("Signup token or PIN invalid.");
+  }
+
+  var channel_id,
+      stripe_id,
+      plan_id,
+      currency,
+      Auth0ManagementToken;
+
+  try {
+
+    // Create the Stripe account.
+
+    const stripeAccountObject = await createStripeAccountObject(data);
+    const { id }              = await createStripeAccount(stripeAccountObject);
+    channel_id                = id.replace(/^(acct|cus)_/g, "");
+    stripe_id                 = id;
+    currency                  = stripeAccountObject.external_account.currency;
+
+    // Create the Stripe plan.
+
+    const planOptions = {
+      amount:   1999,
+      interval: "month",
+      product: {
+        id:   `prod_channel_${channel_id}`,
+        name: `prod_channel_${channel_id}`
+      },
+      currency
+    };
+
+    ({ id: plan_id } = await createStripePlan(planOptions));
+
+  } catch(error) {
+
+    rollback(["stripe"], {
+      user_id:    stripe_id,
+      product_id: `prod_channel_${channel_id}`,
+      plan_id:    plan_id
+    })(error);
+
+    return false;
+  }
+
+  try {
+
+    // Get Auth0 management token.
+
+    Auth0ManagementToken = await getAuth0ManagementToken();
+
+    // Create the Auth0 user.
+
+    await createAuth0User(Object.assign({ user_id: stripe_id, role: "channel" }, data, Auth0ManagementToken));
+
+  } catch(error) {
+
+    rollback(["stripe"], {
+      user_id: stripe_id,
+      product_id: `prod_channel_${channel_id}`,
+      plan_id: plan_id
+    })(error);
+
+    return false;
+  }
+
+  try {
+
+    // Create the channel and delete the signup token.
+
+    const seed = {
+      channel_id,
+      currency,
+      plan_id
+    };
+    
+    await Promise.all([createChannel(seed), deleteSignupToken(data.token_id)]);
+
+  } catch(error) {
+    console.error("fucking error 2:",error)
+    rollback(["stripe", "auth0"], {
+      user_id: stripe_id,
+      product_id: `prod_channel_${channel_id}`,
+      plan_id: plan_id,
+      access_token: Auth0ManagementToken.access_token
+    })(error);
+
+    return false;
+  }
+
+  return true;
+};
+
+
+function rollback(providers, { user_id, product_id, plan_id, access_token }) {
+
+  const actions = {
+
+    async stripe() {
+
+      if (/^acct/.test(user_id)) {
+
+        // Delete "channel" user.
+
+        console.log(`${"[Stripe] ".padEnd(30, ".")} Rollback: Deleting ${user_id}`);
+        await stripe.accounts.del(user_id)
+        .catch(error => {
+          console.error(`[Stripe] Rollback for ${user_id} failed.`);
+          console.error(error.message);
+        });
+
+        if (plan_id) {
+
+          // Delete associated plan. Must be deleted before its parent product.
+
+          console.log(`${"[Stripe] ".padEnd(30, ".")} Rollback: Deleting ${plan_id}`);
+          await stripe.plans.del(plan_id)
+          .catch(error => {
+            console.error(`[Stripe] Rollback for ${plan_id} failed.`);
+            console.error(error.message);
+          });
+        }
+
+        if (product_id) {
+
+          // Delete associated product.
+
+          console.log(`${"[Stripe] ".padEnd(30, ".")} Rollback: Deleting ${product_id}`);
+          await stripe.products.del(product_id)
+          .catch(error => {
+            console.error(`${"[Stripe] ".padEnd(30, ".")} Rollback for ${product_id} failed.`);
+            console.error(error.message);
+          });
+        }
+
+      } else {
+
+        // Delete "subscriber" user.
+
+        console.log(`${"[Stripe] ".padEnd(30, ".")} Rollback: Deleting ${user_id}`);
+        await stripe.customers.del(user_id)
+        .catch(error => {
+          console.error(`${"[Stripe] ".padEnd(30, ".")} Rollback for ${user_id} failed.`);
+          console.error(error.message);
+        })
+      }
+
+    },
+
+    auth0() {
+
+      const options = {
+        method: "DELETE",
+        url: `https://${process.env.AUTH0_DOMAIN}/api/v2/users/auth0|${user_id}`,
+        headers: {
+          "Authorization": `Bearer ${access_token}`,
+          "Content-Type": "application/json; charset=utf-8"
+        }
+      };
+
+      console.log(`${"[Auth0] ".padEnd(30, ".")} Rollback: Deleting ${user_id}`);
+      request(options, (error, response) => {
+        if (error) {
+          console.error(`${"[Auth0] ".padEnd(30, ".")} Rollback for ${user_id} failed.`);
+          console.error(error.message);
+        }
+      });
+
+    }
+  };
+  
+  return error => {
+    providers.map(provider => actions[provider]());
+    console.error(error);
+  }
+}
+
+
+function getChannelById (root, args, ctx, ast) {
 
   // Always private, called from the channel settings page.
 
@@ -41,15 +306,21 @@ const getChannelById = async (root, args, ctx, ast) => {
 
   return DynamoDB.get(params).promise()
   .then(({ Item: channel }) => {
+
     if (channel) {
-      channel = curateSets(channel);
-      channel.earnings_month = channel.subscribers.length * channel.subscription_rate;
-      channel.description = parseMarkdown(channel.description, true);
-      channel.overview = parseMarkdown(channel.overview, true);
+
+      if (ctx.private) {
+        channel                = curateSets(channel);
+        channel.earnings_month = channel.subscribers.length * channel.rate;
+        channel.description    = parseMarkdown(channel.description, true);
+        channel.overview       = parseMarkdown(channel.overview, true);
+      }
       return channel;
+
     } else {
       throw new Error();
     }
+
   })
   .catch(error => {
     console.error(error);
@@ -58,7 +329,7 @@ const getChannelById = async (root, args, ctx, ast) => {
 };
 
 
-const getChannelBySlug = (root, args, ctx, ast) => {
+function getChannelBySlug (root, args, ctx, ast) {
 
   // Called only from a public channel page, but accessible from within
   // both the public and private API. It also exists within the private
@@ -92,7 +363,7 @@ const getChannelBySlug = (root, args, ctx, ast) => {
       delete channel.earnings_total;
       delete channel.subscriber_count;
       delete channel.subscriber_pays;
-      delete channel.is_unlisted;
+      delete channel.unlisted;
 
       // Deserialize the channel description and overview.
 
@@ -234,19 +505,21 @@ const getChannelPaymentSettings = (root, args, ctx, ast) => {
     // Mangle the data into a form GraphQL will accept.
 
     const paymentSettingsObject = {
-      first_name: account.legal_entity.first_name,
-      last_name: account.legal_entity.last_name,
-      country: account.country,
-      city: account.legal_entity.address.city,
-      line1: account.legal_entity.address.line1,
-      postal_code: account.legal_entity.address.postal_code,
-      state: account.legal_entity.address.state,
-      dob: `${year}-${month}-${day}`,
-      bank_name: account.external_accounts.data[0].bank_name,
-      routing_number: account.external_accounts.data[0].routing_number,
+
+      first_name:           account.legal_entity.first_name,
+      last_name:            account.legal_entity.last_name,
+      country:              account.country,
+      city:                 account.legal_entity.address.city,
+      line1:                account.legal_entity.address.line1,
+      postal_code:          account.legal_entity.address.postal_code,
+      state:                account.legal_entity.address.state,
+      dob:                  `${year}-${month}-${day}`,
+      bank_name:            account.external_accounts.data[0].bank_name,
+      routing_number:       account.external_accounts.data[0].routing_number,
       account_number_last4: account.external_accounts.data[0].last4,
-      payout_interval: account.payout_schedule.interval,
-      payout_anchor: account.payout_schedule.monthly_anchor || account.payout_schedule.weekly_anchor || null
+      payout_interval:      account.payout_schedule.interval,
+      payout_anchor:        account.payout_schedule.monthly_anchor || account.payout_schedule.weekly_anchor || null
+
     };
 
     return paymentSettingsObject;
@@ -268,33 +541,26 @@ const createChannel = ({ channel_id, currency, plan_id }) => {
   // This method is only accessible through ChannelSignupMutation.
 
   const channel = {
-    channel_id: channel_id,
-    created_at: new Date().getTime(),
-    updated_at: null,
-    profile_url: `${process.env.DATA_HOST}/${process.env.S3_BUCKET_OUT}/channels/${channel_id}/profile.jpeg`,
-    payload_url: null,
-    earnings_total: 0,
-    currency: currency,
-    plan_id: plan_id,
-    slug: null,
-    title: null,
-    description: null,
-    is_nsfw: false,
-    is_unlisted: false,
-    subscription_rate: 499,
-    subscriber_pays: false,
-    releases: DynamoDB.createSet(["__DEFAULT__"]),
-    syndicates: DynamoDB.createSet(["__DEFAULT__"]),
-    subscribers: DynamoDB.createSet(["__DEFAULT__"]),
-    invitations: DynamoDB.createSet(["__DEFAULT__"])
+    channel_id,
+    currency,
+    plan_id,
+    time_created:   Date.now(),
+    time_updated:   null,
+    payload_url:    null,
+    slug:           null,
+    title:          null,
+    description:    null,
+    overview:       null,
+    unlisted:       false,
+    rate:           1999,
+    earnings_total: 0
   };
 
   console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Creating new channel ${channel_id}`);
   return DynamoDB.put({
     TableName: process.env.DYNAMODB_TABLE_CHANNELS,
     Item: channel
-  })
-  .promise()
+  }).promise()
   .then(() => ({ channel_id }))
   .catch(error => {
     console.error(error);
@@ -306,12 +572,15 @@ const createChannel = ({ channel_id, currency, plan_id }) => {
 const updateChannel = async (root, args, ctx, ast) => {
 
   const data = sanitize(args.data);
-  data.updated_at = new Date().toISOString();
+  data.time_updated = Date.now();
 
-  if (data.subscription_rate) {
+  if (data.rate) {
+
+    // Update subscription rate.
+
     try {
       const channel     = await getChannelById(null, data);
-      const new_plan_id = await stripeUtilities.handleSubscriptionRateChange("channel", channel, Math.floor(data.subscription_rate));
+      const new_plan_id = await stripeUtilities.handleSubscriptionRateChange("channel", channel, Math.floor(data.rate));
 
       // Set "data.plan_id" so it gets written into the DynamoDB UpdateExpression.
 
@@ -401,23 +670,4 @@ const updateChannelPaymentSettings = async (root, args, ctx, ast) => {
   .catch(error => {
     throw new Error("Error updating payment settings.");
   });
-};
-
-
-////////////////////////////////////////////////////
-///////////////////// EXPORTS //////////////////////
-////////////////////////////////////////////////////
-
-
-module.exports = {
-  getChannelById,
-  getChannelBySlug,
-  getChannelsByIdArray,
-  getApprovalsByIdArray,
-  getRejectionsByIdArray,
-  getChannelsByRange,
-  getChannelPaymentSettings,
-  createChannel,
-  updateChannel,
-  updateChannelPaymentSettings
 };

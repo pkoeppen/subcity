@@ -1,4 +1,5 @@
-require("dotenv").config({ path: `${__dirname}/../../.env` });
+require("../../shared").loadEnv("dev").__load__();
+
 const {
   forIn
 } = require("lodash");
@@ -13,7 +14,7 @@ const {
   addMockFunctionsToSchema,
   mockServer
 } = require("graphql-tools");
-const { graphql, printSchema } = require("graphql");
+const { graphql, printSchema, GraphQLSchema, GraphQLObjectType, GraphQLString } = require("graphql");
 const { DynamoDB } = require("../shared");
 const schema = require("../schema");
 
@@ -34,18 +35,18 @@ const {
 ///////////////////////////////////////////////////
 
 
-const typeDefsPublic  = printSchema(schema.public);
-const schemaPublic    = makeExecutableSchema({ typeDefs: typeDefsPublic });
-const serverPublic    = mockServer(typeDefsPublic);
+const typeDefsPublic = printSchema(schema.public);
+const schemaPublic   = makeExecutableSchema({ typeDefs: typeDefsPublic });
+const serverPublic   = mockServer(typeDefsPublic);
 
 addMockFunctionsToSchema({
   schema: schemaPublic,
   mocks: {
     Boolean: () => false,
-    ID: () => "__ID__",
-    Int: () => 1,
-    Float: () => 9.99,
-    String: () => "__STRING__",
+    ID:      () => "__ID__",
+    Int:     () => 1,
+    Float:   () => 9.99,
+    String:  () => "__STRING__"
   }
 });
 
@@ -57,10 +58,10 @@ addMockFunctionsToSchema({
   schema: schemaPrivate,
   mocks: {
     Boolean: () => false,
-    ID: () => "__ID__",
-    Int: () => 1,
-    Float: () => 9.99,
-    String: () => "__STRING__"
+    ID:      () => "__ID__",
+    Int:     () => 123,
+    Float:   () => 999,
+    String:  () => "__STRING__"
   }
 });
 
@@ -68,6 +69,41 @@ addMockFunctionsToSchema({
 ///////////////////////////////////////////////////
 ////////////////////// TESTS //////////////////////
 ///////////////////////////////////////////////////
+
+
+// - Clear all data - also empty S3
+// - Seed with initial tokens
+// - Test everything
+
+// (x2)
+
+// ### SIGNUP
+// getSignupToken                 (test: token exists)
+// channelSignup                  (test: channel exists in DB)
+// updateChannel / getUploadURL   (test: updates exist in DB, uploads exist in S3)
+
+// ### CHANNEL
+// updateChannelPaymentSettings   (test: updates exist in Stripe)
+// createRelease / getUploadURL   (test: release exists in DB, uploads exist in S3)
+// updateRelease                  (test: updates exist in DB, uploads exist in S3)
+
+// ### SYNDICATE
+// createSyndicate / getUploadURL (test: release exists in DB, uploads exist in S3)
+// createProposal                 (test: proposal exists in DB, uploads exist in S3)
+// submitProposalVote             (test: changes applied to syndicate in DB)
+
+// ### SUBSCRIBER
+// subscriberSignup               (test: subscriber exists in DB)
+// modifySubscription             (test: subscription to channel-0 exists in DB, payment history exists)
+// modifySubscription             (test: subscription to channel-0 removed from DB)
+// modifySubscription             (resubscribe to channel-0 for next test)
+// modifySubscription             (test: subscription to syndicate-0 exists in DB, subscription to channel-0 removed, payment history exists)
+
+// ### CHANNEL-INVITE
+// createProposal                 (test: proposal exists in DB)
+// submitProposalVote             (test: invite message exists in DB)
+// respondToSyndicateInvite       (test: membership exists in DB) (change to joinSyndicate, vetted by invitation token?)
+
 
 
 before(async function() {
@@ -99,24 +135,26 @@ describe("ChannelQuery: Queries", function() {
       query($channel_id: ID!) {
         getChannelById(channel_id: $channel_id) {
           channel_id,
-          created_at,
-          updated_at,
-          profile_url,
+          time_created,
+          time_updated,
           payload_url,
-          release_count,
-          earnings_month,
           earnings_total,
           subscriber_count,
           currency,
           plan_id,
-          is_subscribed,
+          subscribed,
           slug,
           title,
-          description,
-          is_nsfw,
-          is_unlisted,
-          subscription_rate,
-          subscriber_pays
+          description {
+            raw,
+            rendered
+          },
+          overview {
+            raw,
+            rendered
+          },
+          unlisted,
+          rate
         }
       }
     `;
@@ -141,30 +179,32 @@ describe("ChannelQuery: Queries", function() {
       data: {
         getChannelById: {
           channel_id: "__ID__",
-          created_at: "__STRING__",
-          updated_at: "__STRING__",
-          profile_url: "__STRING__",
+          time_created: 999,
+          time_updated: 999,
           payload_url: "__STRING__",
-          release_count: 1,
-          earnings_month: 9.99,
-          earnings_total: 9.99,
-          subscriber_count: 1,
+          earnings_total: 123,
+          subscriber_count: 123,
           currency: "__STRING__",
           plan_id: "__STRING__",
-          is_subscribed: false,
+          subscribed: "__STRING__",
           slug: "__STRING__",
           title: "__STRING__",
-          description: "__STRING__",
-          is_nsfw: false,
-          is_unlisted: false,
-          subscription_rate: 9.99,
-          subscriber_pays: false
+          description: {
+            raw: "__STRING__",
+            rendered: "__STRING__"
+          },
+          overview: {
+            raw: "__STRING__",
+            rendered: "__STRING__"
+          },
+          unlisted: false,
+          rate: 123
         }
       }
     };
 
     it("should return data as expected", async () => {
-      let actual = await graphql(schemaPrivate, query, null, { ctx }, variables);
+      let actual = await graphql(schema.private, query, null, { ctx }, variables);
       expect(actual).to.deep.equal(expected);
     });
 
@@ -182,9 +222,8 @@ describe("ChannelQuery: Queries", function() {
       query($slug: String!) {
         getChannelBySlug(slug: $slug) {
           channel_id,
-          created_at,
-          updated_at,
-          profile_url,
+          time_created,
+          time_updated,
           payload_url,
           release_count,
           earnings_month,
@@ -218,8 +257,8 @@ describe("ChannelQuery: Queries", function() {
       data: {
         getChannelBySlug: {
           channel_id: "__ID__",
-          created_at: "__STRING__",
-          updated_at: "__STRING__",
+          time_created: "__STRING__",
+          time_updated: "__STRING__",
           profile_url: "__STRING__",
           payload_url: "__STRING__",
           release_count: 1,
@@ -254,8 +293,8 @@ describe("ChannelQuery: Queries", function() {
       query($channel_id: ID!, $slug: String!) {
         getChannelBySlug(channel_id: $channel_id, slug: $slug) {
           channel_id,
-          created_at,
-          updated_at,
+          time_created,
+          time_updated,
           profile_url,
           payload_url,
           release_count,
@@ -291,8 +330,8 @@ describe("ChannelQuery: Queries", function() {
       data: {
         getChannelBySlug: {
           channel_id: "__ID__",
-          created_at: "__STRING__",
-          updated_at: "__STRING__",
+          time_created: "__STRING__",
+          time_updated: "__STRING__",
           profile_url: "__STRING__",
           payload_url: "__STRING__",
           release_count: 1,
@@ -405,8 +444,8 @@ describe("ChannelMutation", function() {
       mutation($data: ChannelInput!) {
         updateChannel(data: $data) {
           channel_id,
-          created_at,
-          updated_at,
+          time_created,
+          time_updated,
           profile_url,
           payload_url,
           release_count,
@@ -457,8 +496,8 @@ describe("ChannelMutation", function() {
       data: {
         updateChannel: {
           channel_id: "__ID__",
-          created_at: "__STRING__",
-          updated_at: "__STRING__",
+          time_created: "__STRING__",
+          time_updated: "__STRING__",
           profile_url: "__STRING__",
           payload_url: "__STRING__",
           release_count: 1,
@@ -637,8 +676,8 @@ describe("ChannelQuery: Resolvers", function() {
 
     let expected = {
       channel_id: "__ID__",
-      created_at: "__STRING__",
-      updated_at: "__STRING__",
+      time_created: "__STRING__",
+      time_updated: "__STRING__",
       profile_url: "__STRING__",
       payload_url: "__STRING__",
       release_count: 1,
@@ -678,8 +717,8 @@ describe("ChannelQuery: Resolvers", function() {
 
     let expected = {
       channel_id: "__ID__",
-      created_at: "__STRING__",
-      updated_at: "__STRING__",
+      time_created: "__STRING__",
+      time_updated: "__STRING__",
       profile_url: "__STRING__",
       payload_url: "__STRING__",
       release_count: 1,

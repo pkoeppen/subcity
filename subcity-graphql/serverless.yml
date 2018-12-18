@@ -79,6 +79,9 @@ functions:
 
 resources:
   Resources:
+
+    ### S3 Bucket IN
+
     ImageBucketIn:
       Type: AWS::S3::Bucket
       Properties:
@@ -97,6 +100,9 @@ resources:
                 - DELETE
                 - HEAD
               MaxAge: 3000
+
+    ### S3 Bucket OUT
+
     ImageBucketOut:
       Type: AWS::S3::Bucket
       Properties:
@@ -117,126 +123,336 @@ resources:
     ChannelsTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: channel_id
           AttributeType: S
+
         KeySchema:
         - AttributeName: channel_id
           KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
+
+        BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_CHANNELS}"
 
-    ### ReleasesTable
+    ### MembershipsTable
 
-    ReleasesTable:
+    MembershipsTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: channel_id
           AttributeType: S
-        - AttributeName: release_id
+        - AttributeName: syndicate_id
           AttributeType: S
+
         KeySchema:
+
+          # Default - Query memberships by channel_id.
+
         - AttributeName: channel_id
           KeyType: HASH
-        - AttributeName: release_id
+        - AttributeName: syndicate_id
           KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
-        TableName: "${self:provider.environment.DYNAMODB_TABLE_RELEASES}"
 
-    ### SyndicatesTable
+        GlobalSecondaryIndexes:
 
-    SyndicatesTable:
+          # GSI to query memberships by syndicate_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_MEMBERSHIPS}-GSI"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          - AttributeName: channel_id
+            KeyType: RANGE
+          Projection:
+            NonKeyAttributes:
+            - time_created
+            ProjectionType: INCLUDE
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_MEMBERSHIPS}"
+
+    ### MessagesTable
+
+    # MessagesTable:
+    #   Type: AWS::DynamoDB::Table
+    #   Properties:
+
+    #     AttributeDefinitions:
+    #     - AttributeName: sender
+    #       AttributeType: S
+    #     - AttributeName: receiver
+    #       AttributeType: S
+    #     - AttributeName: time_created
+    #       AttributeType: N
+    #     # - AttributeName: content
+    #     #   AttributeType: S
+    #     # - AttributeName: type
+    #     #   AttributeType: S
+
+    #     KeySchema:
+    #     - AttributeName: sender
+    #       KeyType: HASH
+    #     - AttributeName: time_created
+    #       KeyType: RANGE
+
+    #     GlobalSecondaryIndexes:
+
+    #       # GSI to query messages by receiver_id.
+
+    #     - IndexName: "${self:provider.environment.DYNAMODB_TABLE_MESSAGES}-GSI"
+    #       KeySchema:
+    #       - AttributeName: receiver
+    #         KeyType: HASH
+    #       - AttributeName: sender
+    #         KeyType: RANGE
+    #       Projection:
+    #         NonKeyAttributes:
+    #         - time_created
+    #         # - content
+    #         # - type
+    #         ProjectionType: INCLUDE
+
+    #     TableName: "${self:provider.environment.DYNAMODB_TABLE_MESSAGES}"
+
+    ### PaymentsTable
+
+    PaymentsTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
         - AttributeName: syndicate_id
           AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
+
         KeySchema:
-        - AttributeName: syndicate_id
+        - AttributeName: channel_id
           KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
-        TableName: "${self:provider.environment.DYNAMODB_TABLE_SYNDICATES}"
+        - AttributeName: time_created
+          KeyType: RANGE
+
+        GlobalSecondaryIndexes:
+
+          # GSI to query payments by syndicate_id (if it exists).
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_PAYMENTS}-GSI"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          - AttributeName: time_created
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_PAYMENTS}"
 
     ### ProposalsTable
 
     ProposalsTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: syndicate_id
           AttributeType: S
-        - AttributeName: proposal_id
-          AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
+
         KeySchema:
         - AttributeName: syndicate_id
           KeyType: HASH
-        - AttributeName: proposal_id
+        - AttributeName: time_created
           KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
+
+        BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_PROPOSALS}"
+
+    ### ReleasesTable
+
+    ReleasesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+
+        AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
+        - AttributeName: slug
+          AttributeType: S
+
+        KeySchema:
+        - AttributeName: channel_id
+          KeyType: HASH
+        - AttributeName: time_created
+          KeyType: RANGE
+
+        LocalSecondaryIndexes:
+
+          # LSI to query releases by slug.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_RELEASES}-LSI"
+          KeySchema:
+          - AttributeName: channel_id
+            KeyType: HASH
+          - AttributeName: slug
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_RELEASES}"
+
+    ### SlugsTable
+
+    SlugsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+
+        AttributeDefinitions:
+        - AttributeName: slug
+          AttributeType: S
+        - AttributeName: channel_id
+          AttributeType: S
+        - AttributeName: syndicate_id
+          AttributeType: S
+
+        KeySchema:
+        - AttributeName: slug
+          KeyType: HASH
+
+        GlobalSecondaryIndexes:
+
+          # GSI to query a slug by channel_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_SLUGS}-GSI-1"
+          KeySchema:
+          - AttributeName: channel_id
+            KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+          # GSI to query a slug by syndicate_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_SLUGS}-GSI-2"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_SLUGS}"
 
     ### SubscribersTable
 
     SubscribersTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: subscriber_id
           AttributeType: S
+
         KeySchema:
         - AttributeName: subscriber_id
           KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
+
+        BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_SUBSCRIBERS}"
 
-    ### PurchasesTable
+    ### SubscriptionsTable
 
-    PurchasesTable:
+    SubscriptionsTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: subscriber_id
           AttributeType: S
-        - AttributeName: purchase_id
+        - AttributeName: channel_id
           AttributeType: S
+        - AttributeName: syndicate_id
+          AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
+
         KeySchema:
         - AttributeName: subscriber_id
           KeyType: HASH
-        - AttributeName: purchase_id
+        - AttributeName: time_created
           KeyType: RANGE
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
-        TableName: "${self:provider.environment.DYNAMODB_TABLE_PURCHASES}"
+
+        GlobalSecondaryIndexes:
+
+          # GSI to query subscriptions by channel_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-1"
+          KeySchema:
+          - AttributeName: channel_id
+            KeyType: HASH
+          - AttributeName: subscriber_id
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+          # GSI to query subscriptions by syndicate_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          - AttributeName: subscriber_id
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_SUBSCRIPTIONS}"
+
+    ### SyndicatesTable
+
+    SyndicatesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+
+        AttributeDefinitions:
+        - AttributeName: syndicate_id
+          AttributeType: S
+
+        KeySchema:
+        - AttributeName: syndicate_id
+          KeyType: HASH
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_SYNDICATES}"
 
     ### TokensTable
 
     TokensTable:
       Type: AWS::DynamoDB::Table
       Properties:
+
         AttributeDefinitions:
         - AttributeName: token_id
           AttributeType: S
+
         KeySchema:
         - AttributeName: token_id
           KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "5"
-          WriteCapacityUnits: "5"
+
+        BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_TOKENS}"
 
-    # This response is needed for custom authorizer failures cors support ¯\_(ツ)_/¯
+    # This response is needed for custom authorizer failures CORS support.
+
     GatewayResponse:
       Type: "AWS::ApiGateway::GatewayResponse"
       Properties:

@@ -7,17 +7,21 @@ const {
   GraphQLObjectType,
   GraphQLInputObjectType,
   GraphQLString,
-  GraphQLNonNull,
+  GraphQLNonNull
 } = require("graphql");
 
 const {
+
   channel: {
     getChannelsByIdArray
   },
+
   proposal: {
     getProposalsByIdArray
   }
+
 } = require("../resolvers");
+
 
 const SyndicateType = new GraphQLObjectType({
   name: "Syndicate",
@@ -29,7 +33,7 @@ const SyndicateType = new GraphQLObjectType({
 
     // Non-editable.
 
-    created_at:       { type: new GraphQLNonNull(GraphQLFloat) },
+    time_created:     { type: new GraphQLNonNull(GraphQLFloat) },
     profile_url:      { type: new GraphQLNonNull(GraphQLString) },
     earnings_total:   { type: new GraphQLNonNull(GraphQLInt) },    // This is how much the syndicate has ever made.
     earnings_cut:     { type: new GraphQLNonNull(GraphQLFloat) },  // This is how much the requesting channel has made with this syndicate.
@@ -78,6 +82,7 @@ const SyndicateInputType = new GraphQLInputObjectType({
     subscriber_pays:   { type: new GraphQLNonNull(GraphQLBoolean) }
   })
 });
+
 
 module.exports = {
   SyndicateType,

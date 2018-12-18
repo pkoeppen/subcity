@@ -4,11 +4,32 @@ const {
 } = require("lodash");
 
 
-////////////////////////////////////////////////////
+module.exports = {
+  createStripeAccountObject,
+  createStripeAccount,
+  createStripePlan,
+  createStripeCustomer,
+  parseDate,
+  parseLast4,
+  getDefaultCurrency,
+  handleSubscriptionRateChange,
+  handleSubscriptionTransfer,
+  getPlansByProductId,
+  getSubscriptionsFromPlans,
+  updateSubscriptionsToNewPlan,
+  deletePlans,
+  deleteProduct,
+  deleteSubscriptions,
+  purgeByProductID
+};
 
 
-async function getStripeAccountObject(data) {
+async function createStripeAccountObject(data) {
+
+  // Create an object ready for submission to Stripe Connect.
+
   const { year, month, day } = parseDate(data.dob);
+
   const stripeAccountObject = {
     type: "custom",
     country: data.country,
@@ -35,13 +56,14 @@ async function getStripeAccountObject(data) {
       },
       type: "individual",
       personal_id_number: data.personal_id_number,
-      ...(data.country === "US" && { ssn_last_4: getSSNLast4(data) })
+      ...(data.country === "US" && { ssn_last_4: parseLast4(data) })
     },
     tos_acceptance: {
       date: Math.floor(Date.now() / 1000),
       ip: data.ip_address
     }
   };
+
   return stripeAccountObject;
 }
 
@@ -75,7 +97,7 @@ function parseDate(date) {
 }
 
 
-function getSSNLast4({ personal_id_number }) {
+function parseLast4({ personal_id_number }) {
   if (personal_id_number && /^[0-9]{9}$/.test(personal_id_number)) {
     return personal_id_number.slice(-4);
   } else {
@@ -92,8 +114,8 @@ function getDefaultCurrency(country) {
 
 async function handleSubscriptionRateChange(type, original, subscription_rate) {
 
-  // This method creates a new Stripe plan associated with the channel's Stripe product,
-  // deletes the old plan, and moves all subscribers to the new rate if so specified.
+  // Create a new Stripe plan associated with the channel's Stripe product,
+  // delete the old plan, and move all subscribers to the new rate if so specified.
 
   const {
     channel_id,
@@ -141,8 +163,9 @@ async function handleSubscriptionRateChange(type, original, subscription_rate) {
     { id: new_plan_id }
   ] = await Promise.all([a,b]);
 
-  if (true) { // TODO: Some option to move all existing subscribers to new plan (or leave them)
+  if (true) {
 
+    // TODO: Some option to move all existing subscribers to new plan (or leave them)
     // TODO: Email subscribers regarding update to subscription.
 
     await handleSubscriptionTransfer(product_id, new_plan_id);
@@ -167,7 +190,8 @@ async function handleSubscriptionTransfer(product_id, new_plan_id, delete_produc
 
   await deletePlans(old_plans);
 
-  // And maybe delete the product, too.
+  // Delete the product.
+  // TODO: What is this???
 
   if (delete_product) {
     await deleteProduct(product_id);
@@ -176,8 +200,8 @@ async function handleSubscriptionTransfer(product_id, new_plan_id, delete_produc
 
 
 async function getPlansByProductId(product_id) {
-  var index = 1;
-  var buffer = [];
+  var index    = 1;
+  var buffer   = [];
   var has_more = true;
 
   // Stripe paginates queries with a max of 100 items per page, so to get all
@@ -194,6 +218,7 @@ async function getPlansByProductId(product_id) {
     buffer = buffer.concat(plansToConcat);
     index++;
   }
+
   return buffer;
 }
 
@@ -275,26 +300,3 @@ async function purgeByProductID(product_id) {
   await deletePlans(plans);
   await deleteProduct(product_id);
 }
-
-
-////////////////////////////////////////////////////
-
-
-module.exports = {
-  getStripeAccountObject,
-  createStripeAccount,
-  createStripePlan,
-  createStripeCustomer,
-  parseDate,
-  getSSNLast4,
-  getDefaultCurrency,
-  handleSubscriptionRateChange,
-  handleSubscriptionTransfer,
-  getPlansByProductId,
-  getSubscriptionsFromPlans,
-  updateSubscriptionsToNewPlan,
-  deletePlans,
-  deleteProduct,
-  deleteSubscriptions,
-  purgeByProductID
-};

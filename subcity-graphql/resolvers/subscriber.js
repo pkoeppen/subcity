@@ -2,7 +2,7 @@ const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
 const {
   curateSets,
   DynamoDB
-} = require("../shared");
+} = require("../../shared");
 const {
   getSyndicateById
 } = require("./syndicate");

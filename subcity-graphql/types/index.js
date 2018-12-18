@@ -1,22 +1,19 @@
 const {
-  ChannelSignupInputType,
-  SubscriberSignupInputType
-} = require("./onboarding");
+  ChannelType,
+  ChannelInputType,
+  ChannelPaymentSettingsType,
+  ChannelPaymentSettingsInputType,
+  ChannelRangeInputType,
+  InitializeChannelInputType
+} = require("./channel");
 
 const {
+  InitializeSubscriberInputType,
   SubscriberType,
   SubscriberPaymentSettingsType,
   SubscriberPaymentSettingsInputType,
   ModifySubscriptionInputType
 } = require("./subscriber");
-
-const {
-  ChannelType,
-  ChannelInputType,
-  ChannelPaymentSettingsType,
-  ChannelPaymentSettingsInputType,
-  ChannelRangeInputType
-} = require("./channel");
 
 const {
   ReleaseType,
@@ -35,40 +32,28 @@ const {
 } = require("./proposal");
 
 const {
-  GetUploadURLInputType
+  UploadURLInputType
 } = require("./upload");
 
 
-////////////////////////////////////////////////////
-///////////////////// EXPORTS //////////////////////
-////////////////////////////////////////////////////
-
-
 module.exports = {
-  ChannelSignupInputType,
-  SubscriberSignupInputType,
-
-  SubscriberType,
-  SubscriberPaymentSettingsType,
-  SubscriberPaymentSettingsInputType,
-  ModifySubscriptionInputType,
-
   ChannelType,
   ChannelInputType,
   ChannelPaymentSettingsType,
   ChannelPaymentSettingsInputType,
   ChannelRangeInputType,
-
+  InitializeSubscriberInputType,
+  InitializeChannelInputType,
+  SubscriberType,
+  SubscriberPaymentSettingsType,
+  SubscriberPaymentSettingsInputType,
+  ModifySubscriptionInputType,
   ReleaseType,
   ReleaseInputType,
-
   SyndicateType,
   SyndicateInputType,
-
   ProposalType,
   ProposalInputType,
-
   ProposalVoteInputType,
-  
-  GetUploadURLInputType
+  UploadURLInputType
 };

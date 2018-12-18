@@ -1,8 +1,16 @@
 const {
-  signupTokenQuery,
-  channelSignupMutation,
-  subscriberSignupMutation
-} = require("./onboarding");
+  ChannelQuery,
+  ChannelMutation,
+  TokenQuery
+} = require("./channel");
+
+const {
+  ProposalMutation
+} = require("./proposal");
+
+const {
+  ReleaseMutation
+} = require("./release");
 
 const {
   SubscriberQuery,
@@ -10,134 +18,74 @@ const {
 } = require("./subscriber");
 
 const {
-  ChannelQuery,
-  ChannelMutation
-} = require("./channel");
-
-const {
-  ReleaseQuery,
-  ReleaseMutation
-} = require("./release");
-
-const {
   SyndicateQuery,
   SyndicateMutation
 } = require("./syndicate");
 
 const {
-  ProposalMutation
-} = require("./proposal");
-
-const {
-  getUploadURLQuery
+  UploadQuery
 } = require("./upload");
 
-////////////////////////////////////////////////////
 
 module.exports = {
 
   queries: {
 
-    ///////////////////////////////////////
-    // PUBLIC // Accessible to everyone. //
-    ///////////////////////////////////////
+    // ChannelQuery
+    
+    getChannelById:            ChannelQuery.getChannelById,
+    getChannelsByRange:        ChannelQuery.getChannelsByRange,
+    getChannelBySlug:          ChannelQuery.getChannelBySlug,
+    getChannelPaymentSettings: ChannelQuery.getChannelPaymentSettings,
 
-    public: {
+    // SubscriberQuery
 
-      // Signup token query.
+    getSubscriber: SubscriberQuery.getSubscriberById,
+    // getSubscriberPaymentSettings
 
-      getSignupToken: signupTokenQuery,
+    // SyndicateQuery
 
-      // Channel queries.
+    getSyndicateBySlug:   SyndicateQuery.getSyndicateBySlug,
+    getSyndicatesByRange: SyndicateQuery.getSyndicatesByRange,
 
-      getChannelBySlug: ChannelQuery.public.getChannelBySlug,
-      getChannelsByRange: ChannelQuery.public.getChannelsByRange,
+    // TokenQuery
 
-      // Release queries.
+    assertTokenExists: TokenQuery.assertTokenExists,
 
-      // getReleaseBySlug: ReleaseQuery.public.getReleaseBySlug,
-      // getMultipleReleases: ReleaseQuery.public.getMultipleReleases
+    // UploadQuery
 
-      // Syndicate queries.
-
-      getSyndicateBySlug:   SyndicateQuery.public.getSyndicateBySlug,
-      getSyndicatesByRange: SyndicateQuery.public.getSyndicatesByRange
-    },
-
-    /////////////////////////////////////////
-    // PRIVATE // Accessible to the owner. //
-    /////////////////////////////////////////
-
-    private: {
-
-      // Subscriber (settings) queries.
-
-      getSubscriber: SubscriberQuery.private.getSubscriberById,
-      //getSubscriberPaymentSettings: SubscriberQuery.private.getSubscriberPaymentSettings,
-
-      // Channel (settings) queries.
-
-      getChannelById: ChannelQuery.private.getChannelById,
-      getChannelBySlug: ChannelQuery.private.getChannelBySlug,
-      getChannelPaymentSettings: ChannelQuery.private.getChannelPaymentSettings,
-
-      // Release (settings) queries.
-
-      getRelease: ReleaseQuery.private.getReleaseById,
-      // getReleases: ReleasesQuery.private.getReleaseByIdArray,
-
-      // Syndicate queries.
-
-      getSyndicateBySlug: SyndicateQuery.private.getSyndicateBySlug,
-
-      // S3 upload URL query.
-
-      getUploadURL: getUploadURLQuery
-    }
+    getUploadURL: UploadQuery.getUploadURL
   },
 
   mutations: {
 
-    ///////////////////////////////////////
-    // PUBLIC // Accessible to everyone. //
-    ///////////////////////////////////////
+    // ChannelMutation
 
-    public: {
+    initializeChannel:            ChannelMutation.initializeChannel,
+    updateChannel:                ChannelMutation.updateChannel,
+    updateChannelPaymentSettings: ChannelMutation.updateChannelPaymentSettings,
 
-      // Signup mutations.
+    // SubscriberMutation
 
-      channelSignup: channelSignupMutation,
-      subscriberSignup: subscriberSignupMutation
-    },
+    initializeSubscriber: SubscriberMutation.initializeSubscriber,
+    // updateSubscriber
+    // updateSubscriberPaymentSettings
+    modifySubscription: SubscriberMutation.modifySubscription,
 
-    /////////////////////////////////////////////////
-    // PRIVATE // Accessible to the owner/members. //
-    /////////////////////////////////////////////////
+    // ReleaseMutation
 
-    private: {
+    createRelease: ReleaseMutation.createRelease,
+    updateRelease: ReleaseMutation.updateRelease,
 
-      // Subscriber (settings) mutations.
+    // SyndicateMutation
 
-      //updateSubscriberPaymentSettings: SubscriberMutation.private.updateSubscriberPaymentSettings,
-      modifySubscription: SubscriberMutation.private.modifySubscription,
+    createSyndicate:          SyndicateMutation.createSyndicate,
+    leaveSyndicate:           SyndicateMutation.leaveSyndicate,
+    respondToSyndicateInvite: SyndicateMutation.respondToSyndicateInvite,
 
-      // Channel (settings) mutations.
+    // ProposalMutation
 
-      updateChannel: ChannelMutation.private.updateChannel,
-      updateChannelPaymentSettings: ChannelMutation.private.updateChannelPaymentSettings,
-
-      // Release (settings) mutations.
-
-      createRelease: ReleaseMutation.private.createRelease,
-      updateRelease: ReleaseMutation.private.updateRelease,
-
-      // Syndicate (settings) mutations.
-
-      createSyndicate: SyndicateMutation.private.createSyndicate,
-      leaveSyndicate: SyndicateMutation.private.leaveSyndicate,
-      respondToSyndicateInvite: SyndicateMutation.private.respondToSyndicateInvite,
-      createProposal: ProposalMutation.private.createProposal,
-      submitProposalVote: ProposalMutation.private.submitProposalVote
-    }
+    createProposal:     ProposalMutation.createProposal,
+    submitProposalVote: ProposalMutation.submitProposalVote
   }
 };

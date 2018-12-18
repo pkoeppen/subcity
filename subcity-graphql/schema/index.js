@@ -1,45 +1,27 @@
 const {
-  graphql,
-  parse,
-  print,
-  typeFromAST,
-  GraphQLSchema,
   GraphQLObjectType,
-} = require('graphql');
+  GraphQLSchema  
+} = require("graphql");
 
 const {
   queries,
   mutations
-} = require('../queries/');
+} = require("../queries");
 
-////////////////////////////////////////////////////
 
-const schema = {
+const schema = new GraphQLSchema({
 
-  public: new GraphQLSchema({
-    query: new GraphQLObjectType({
-      name: "QueryPublic",
-      fields: queries.public
-    }),
-    mutation: new GraphQLObjectType({
-      name: "MutationPublic",
-      fields: mutations.public
-    })
+  query: new GraphQLObjectType({
+    name: "Query",
+    fields: queries
   }),
 
-  private: new GraphQLSchema({
-    query: new GraphQLObjectType({
-      name: "QueryPrivate",
-      fields: queries.private
-    }),
-    mutation: new GraphQLObjectType({
-      name: "MutationPrivate",
-      fields: mutations.private
-    }),
+  mutation: new GraphQLObjectType({
+    name: "Mutation",
+    fields: mutations
   })
 
-};
+});
 
-////////////////////////////////////////////////////
 
 module.exports = schema;

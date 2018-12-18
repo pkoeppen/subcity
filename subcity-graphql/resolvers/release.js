@@ -11,7 +11,7 @@ const {
   buildDynamoDBQuery,
   parseMarkdown,
   sanitize
-} = require("../shared");
+} = require("../../shared");
 
 
 ///////////////////////////////////////////////////

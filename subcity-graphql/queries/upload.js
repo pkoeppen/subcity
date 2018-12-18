@@ -1,29 +1,37 @@
 const {
-  GraphQLString,
-  GraphQLNonNull
+  GraphQLNonNull,
+  GraphQLString
 } = require("graphql");
+
 const {
-  GetUploadURLInputType
+  UploadURLInputType
 } = require("../types")
+
 const {
-  getUploadURL
-} = require("../resolvers").upload;
 
-////////////////////////////////////////////////////
+  upload: {
+    getUploadURL
+  }
 
-const getUploadURLQuery = {
-  type: new GraphQLNonNull(GraphQLString),
-  args: {
-    data: {
-      name: "data",
-      type: new GraphQLNonNull(GetUploadURLInputType)
-    }
-  },
-  resolve: getUploadURL
+} = require("../resolvers");
+
+
+const UploadQuery = {
+
+  getUploadURL: {
+    type: new GraphQLNonNull(GraphQLString),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(UploadURLInputType)
+      }
+    },
+    resolve: getUploadURL
+  }
+
 };
 
-////////////////////////////////////////////////////
 
 module.exports = {
-  getUploadURLQuery
+  UploadQuery
 };

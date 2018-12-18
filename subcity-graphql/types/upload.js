@@ -1,13 +1,15 @@
 const {
   GraphQLID,
   GraphQLInputObjectType,
-  GraphQLString,
   GraphQLNonNull,
+  GraphQLString
 } = require("graphql");
 
-const GetUploadURLInputType = new GraphQLInputObjectType({
+
+const UploadURLInputType = new GraphQLInputObjectType({
   name: "GetUploadURLInput",
   fields: () => ({
+
     mime_type:    { type: new GraphQLNonNull(GraphQLString) },
     upload_type:  { type: new GraphQLNonNull(GraphQLString) },
     filename:     { type: new GraphQLNonNull(GraphQLString) },
@@ -15,9 +17,11 @@ const GetUploadURLInputType = new GraphQLInputObjectType({
     release_id:   { type: GraphQLString },
     syndicate_id: { type: GraphQLString },
     proposal_id:  { type: GraphQLString }
+
   })
 });
 
+
 module.exports = {
-  GetUploadURLInputType
+  UploadURLInputType
 };

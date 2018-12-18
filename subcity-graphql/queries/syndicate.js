@@ -6,164 +6,130 @@ const {
   GraphQLString,
   GraphQLNonNull
 } = require("graphql");
+
 const {
   SyndicateType,
   SyndicateInputType
 } = require("../types");
+
 const {
-  getSyndicateById,
-  getSyndicateBySlug,
-  getSyndicatesByRange,
-  createSyndicate,
-  updateSyndicate,
-  leaveSyndicate,
-  respondToSyndicateInvite
-} = require("../resolvers").syndicate;
 
-
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
+  syndicate: {
+    getSyndicateById,
+    getSyndicateBySlug,
+    getSyndicatesByRange,
+    createSyndicate,
+    updateSyndicate,
+    leaveSyndicate,
+    respondToSyndicateInvite  
+  }
+  
+} = require("../resolvers");
 
 
 const SyndicateQuery = {
 
-  public: {
-
-    getSyndicateBySlug: {
-      type: SyndicateType,
-      args: {
-        slug: {
-          name: "slug",
-          type: new GraphQLNonNull(GraphQLString)
-        }
-      },
-      resolve: getSyndicateBySlug
+  getSyndicateById: {
+    type: SyndicateType,
+    args: {
+      syndicate_id: {
+        name: "syndicate_id",
+        type: new GraphQLNonNull(GraphQLID)
+      }
     },
-
-    getSyndicatesByRange: {
-      type: new GraphQLList(SyndicateType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(new GraphQLInputObjectType({
-            name: "SyndicateRangeInput",
-            fields: () => ({
-              search: { type: GraphQLString },
-              deep:   { type: GraphQLBoolean }
-            })
-          }))
-        }
-      },
-      resolve: getSyndicatesByRange
-    }
-    
+    resolve: getSyndicateById
   },
 
-  private: {
-
-    getSyndicateById: {
-      type: SyndicateType,
-      args: {
-        syndicate_id: {
-          name: "syndicate_id",
-          type: new GraphQLNonNull(GraphQLID)
-        }
-      },
-      resolve: getSyndicateById
+  getSyndicatesByRange: {
+    type: new GraphQLList(SyndicateType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(new GraphQLInputObjectType({
+          name: "SyndicateRangeInput",
+          fields: () => ({
+            search: { type: GraphQLString },
+            deep:   { type: GraphQLBoolean }
+          })
+        }))
+      }
     },
+    resolve: getSyndicatesByRange
+  },
 
-    // This query will be called when the user (channel/subscriber)
-    // is logged in and viewing a public syndicate page.
-
-    getSyndicateBySlug: {
-      type: SyndicateType,
-      args: {
-        slug: {
-          name: "slug",
-          type: new GraphQLNonNull(GraphQLString)
-        },
-        channel_id: {
-          name: "channel_id",
-          type: GraphQLID
-        },
-        subscriber_id: {
-          name: "subscriber_id",
-          type: GraphQLID
-        }
-      },
-      resolve: getSyndicateBySlug
+  getSyndicateBySlug: {
+    type: SyndicateType,
+    args: {
+      slug: {
+        name: "slug",
+        type: new GraphQLNonNull(GraphQLString)
+      }
     },
+    resolve: getSyndicateBySlug
   }
+
 };
-
-
-///////////////////////////////////////////////////
-//////////////////// MUTATIONS ////////////////////
-///////////////////////////////////////////////////
 
 
 const SyndicateMutation = {
 
-  private: {
-
-    createSyndicate: {
-      type: new GraphQLNonNull(SyndicateType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(SyndicateInputType)
-        }
-      },
-      resolve: createSyndicate
+  createSyndicate: {
+    type: new GraphQLNonNull(SyndicateType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(SyndicateInputType)
+      }
     },
+    resolve: createSyndicate
+  },
 
-    updateSyndicate: {
-      type: new GraphQLNonNull(SyndicateType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(SyndicateInputType)
-        }
-      },
-      resolve: updateSyndicate
+  updateSyndicate: {
+    type: new GraphQLNonNull(SyndicateType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(SyndicateInputType)
+      }
     },
+    resolve: updateSyndicate
+  },
 
-    leaveSyndicate: {
-      type: new GraphQLNonNull(GraphQLID),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(new GraphQLInputObjectType({
-            name: "LeaveSyndicateInput",
-            fields: () => ({
-              channel_id:   { type: new GraphQLNonNull(GraphQLID) },
-              syndicate_id: { type: new GraphQLNonNull(GraphQLID) }
-            })
-          }))
-        }
-      },
-      resolve: leaveSyndicate
+  leaveSyndicate: {
+    type: new GraphQLNonNull(GraphQLID),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(new GraphQLInputObjectType({
+          name: "LeaveSyndicateInput",
+          fields: () => ({
+            channel_id:   { type: new GraphQLNonNull(GraphQLID) },
+            syndicate_id: { type: new GraphQLNonNull(GraphQLID) }
+          })
+        }))
+      }
     },
+    resolve: leaveSyndicate
+  },
 
-    respondToSyndicateInvite: {
-      type: new GraphQLNonNull(SyndicateType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(new GraphQLInputObjectType({
-            name: "RespondToSyndicateInviteInput",
-            fields: () => ({
-              channel_id:   { type: new GraphQLNonNull(GraphQLID) },
-              syndicate_id: { type: new GraphQLNonNull(GraphQLID) },
-              approved:     { type: new GraphQLNonNull(GraphQLBoolean) }
-            })
-          }))
-        }
-      },
-      resolve: respondToSyndicateInvite
-    }
+  respondToSyndicateInvite: {
+    type: new GraphQLNonNull(SyndicateType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(new GraphQLInputObjectType({
+          name: "RespondToSyndicateInviteInput",
+          fields: () => ({
+            channel_id:   { type: new GraphQLNonNull(GraphQLID) },
+            syndicate_id: { type: new GraphQLNonNull(GraphQLID) },
+            approved:     { type: new GraphQLNonNull(GraphQLBoolean) }
+          })
+        }))
+      }
+    },
+    resolve: respondToSyndicateInvite
   }
+
 };
 
 ////////////////////////////////////////////////////

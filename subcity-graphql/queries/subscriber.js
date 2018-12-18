@@ -1,10 +1,12 @@
 const {
-  GraphQLID,
   GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLID,
   GraphQLNonNull
 } = require("graphql");
 
-const { 
+const {
+  InitializeSubscriberInputType,
   SubscriberType,
   SubscriberPaymentSettingsType,
   SubscriberPaymentSettingsInputType,
@@ -12,77 +14,56 @@ const {
 } = require("../types");
 
 const {
+  initializeSubscriber,
   getSubscriberById,
   getSubscriberPaymentSettings,
   modifySubscription,
   updatePaymentSettings
 } = require("../resolvers").subscriber;
 
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
 
 const SubscriberQuery = {
 
-  private: {
-
-    getSubscriberById: {
-      type: SubscriberType,
-      args: {
-        subscriber_id: {
-          name: "subscriber_id",
-          type: new GraphQLNonNull(GraphQLID)
-        }
-      },
-      resolve: getSubscriberById
+  getSubscriberById: {
+    type: SubscriberType,
+    args: {
+      subscriber_id: {
+        name: "subscriber_id",
+        type: new GraphQLNonNull(GraphQLID)
+      }
     },
-
-    // getSubscriberPaymentSettings: {
-    //   type: SubscriberPaymentSettingsType,
-    //   args: {
-    //     subscriber_id: {
-    //       name: "subscriber_id",
-    //       type: new GraphQLNonNull(GraphQLID)
-    //     }
-    //   },
-    //   resolve: getSubscriberPaymentSettings
-    // }
+    resolve: getSubscriberById
   }
+
 };
 
-///////////////////////////////////////////////////
-//////////////////// MUTATIONS ////////////////////
-///////////////////////////////////////////////////
 
 const SubscriberMutation = {
 
-  private: {
-
-    modifySubscription: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(ModifySubscriptionInputType)
-        }
-      },
-      resolve: modifySubscription
+  initializeSubscriber: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(InitializeSubscriberInputType)
+      }
     },
+    resolve: initializeSubscriber
+  },
 
-    // updateSubscriberPaymentSettings: {
-    //   type: new GraphQLNonNull(GraphQLBoolean),
-    //   args: {
-    //     data: {
-    //       name: "data",
-    //       type: new GraphQLNonNull(SubscriberPaymentSettingsInputType)
-    //     }
-    //   },
-    //   resolve: updatePaymentSettings
-    // }
+  modifySubscription: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(ModifySubscriptionInputType)
+      }
+    },
+    resolve: modifySubscription
   }
+
 };
 
-///////////////////////////////////////////////////
 
 module.exports = {
   SubscriberQuery,

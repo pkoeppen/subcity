@@ -4,7 +4,7 @@ const {
   promisify,
   DynamoDB,
   S3
-} = require("../shared");
+} = require("../../shared");
 
 
 ///////////////////////////////////////////////////

@@ -3,61 +3,70 @@ const {
   GraphQLID,
   GraphQLNonNull
 } = require("graphql");
+
 const {
+  ChannelType,
   ChannelSignupInputType,
   SubscriberSignupInputType,
-  ChannelType,
   SubscriberType
 } = require("../types");
+
 const {
-  getSignupTokenById,
-  handleChannelSignup,
-  handleSubscriberSignup
-} = require("../resolvers").onboarding;
+  onboarding: {
+    assertTokenExists,
+    initializeChannel,
+    initializeSubscriber
+  }
+} = require("../resolvers");
 
-////////////////////////////////////////////////////
 
-const signupTokenQuery = {
-  type: new GraphQLNonNull(GraphQLBoolean),
-  args: {
-    token_id: {
-      name: "token_id",
-      type: new GraphQLNonNull(GraphQLID)
-    }
-  },
-  resolve: getSignupTokenById
+const ChannelSignupMutation = {
+
+  initializeChannel: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(ChannelSignupInputType)
+      }
+    },
+    resolve: initializeChannel
+  }
+
 };
 
-////////////////////////////////////////////////////
+const SubscriberSignupMutation = {
 
-const channelSignupMutation = {
-  type: new GraphQLNonNull(ChannelType),
-  args: {
-    data: {
-      name: "data",
-      type: new GraphQLNonNull(ChannelSignupInputType)
-    }
-  },
-  resolve: handleChannelSignup
+  initializeSubscriber: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(SubscriberSignupInputType)
+      }
+    },
+    resolve: initializeSubscriber
+  }
+
 };
 
-////////////////////////////////////////////////////
+const TokenQuery = {
 
-const subscriberSignupMutation = {
-  type: new GraphQLNonNull(SubscriberType),
-  args: {
-    data: {
-      name: "data",
-      type: new GraphQLNonNull(SubscriberSignupInputType)
-    }
-  },
-  resolve: handleSubscriberSignup
+  assertTokenExists: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      token_id: {
+        name: "token_id",
+        type: new GraphQLNonNull(GraphQLID)
+      }
+    },
+    resolve: assertTokenExists
+  }
 };
 
-////////////////////////////////////////////////////
 
 module.exports = {
-  signupTokenQuery,
-  channelSignupMutation,
-  subscriberSignupMutation
+  ChannelSignupMutation,
+  SubscriberSignupMutation,
+  TokenQuery
 };

@@ -14,9 +14,15 @@ const {
 const createChannel = require("./channel").createChannel;
 const createSubscriber = require("./subscriber").createSubscriber;
 
-////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
+//////////////////////// MUTATIONS /////////////////////////
+////////////////////////////////////////////////////////////
+
 
 const getSignupTokenById = (root, args) => {
+
+  // Fetch signup token. Returns true if it exists.
 
   const { token_id } = args;
 
@@ -24,27 +30,41 @@ const getSignupTokenById = (root, args) => {
     TableName: process.env.DYNAMODB_TABLE_TOKENS,
     Key: { token_id },
   };
+
   return DynamoDB.get(params)
-  .promise().then(data => !!((data || {}).Item || {}).token_id);
+  .promise().then(({ Item: token }));
 };
 
+
 const deleteSignupTokenById = token_id => {
+
+  // Remove signup token after signup.
+
   const params = {
     TableName: process.env.DYNAMODB_TABLE_TOKENS,
     Key: { token_id },
   };
+
   return DynamoDB.delete(params)
   .promise().then(() => true);
 };
 
-const handleChannelSignup = async (root, args, context) => {
 
-  const data = Object.assign(args.data, { ip_address: context.sourceIp });
+const handleChannelSignup = async (root, args, ctx) => {
+
+  const data  = Object.assign(args.data, { ip_address: ctx.sourceIp });
+  const token = await getSignupTokenById(null, ({ token_id: data.token_id }));
 
   // Verify that the channel signup token is valid.
 
-  if (await getSignupTokenById(null, ({ token_id: data.token_id })) === null) {
+  if (!token) {
     throw new Error("Signup token invalid.");
+  }
+
+  // Verify that the signup token PIN is valid.
+
+  if (data.pin !== token.pin) {
+    throw new Error("Signup PIN invalid.");
   }
 
   // Build the Stripe account object.
@@ -61,16 +81,16 @@ const handleChannelSignup = async (root, args, context) => {
     // Create the Stripe account.
 
     const { id } = await createStripeAccount(stripeAccountObject);
-    channel_id = getPrincipalID(null, id);
-    stripe_id = id;
+    channel_id   = getPrincipalID(null, id);
+    stripe_id    = id;
 
     // Create the Stripe plan.
 
     const planOptions = {
-      amount: 499,
+      amount:   1999,
       interval: "month",
       product: {
-        id: `prod_channel_${channel_id}`,
+        id:   `prod_channel_${channel_id}`,
         name: `prod_channel_${channel_id}`
       },
       currency: stripeAccountObject.external_account.currency,
@@ -79,12 +99,14 @@ const handleChannelSignup = async (root, args, context) => {
     ({ id: plan_id } = await createStripePlan(planOptions));
 
   } catch(error) {
+
     rollback(["stripe"], {
-      user_id: stripe_id,
+      user_id:    stripe_id,
       product_id: `prod_channel_${channel_id}`,
-      plan_id: plan_id
+      plan_id:    plan_id
     })(error);
-    return false;
+
+    throw new Error(error);
   }
 
   try {
@@ -98,12 +120,14 @@ const handleChannelSignup = async (root, args, context) => {
     await createAuth0User(Object.assign({ user_id: stripe_id, role: "channel" }, data, Auth0ManagementToken));
 
   } catch(error) {
+
     rollback(["stripe"], {
       user_id: stripe_id,
       product_id: `prod_channel_${channel_id}`,
       plan_id: plan_id
     })(error);
-    return false;
+
+    throw new Error(error);
   }
 
   try {
@@ -113,23 +137,26 @@ const handleChannelSignup = async (root, args, context) => {
     const seed = {
       channel_id,
       currency: stripeAccountObject.external_account.currency,
-      plan_id: plan_id
+      plan_id:  plan_id
     };
     
     await Promise.all([createChannel(seed), deleteSignupTokenById(data.token_id)]);
 
   } catch(error) {
+
     rollback(["stripe", "auth0"], {
       user_id: stripe_id,
       product_id: `prod_channel_${channel_id}`,
       plan_id: plan_id,
       access_token: Auth0ManagementToken.access_token
     })(error);
-    return false;
+
+    throw new Error(error);
   }
 
   return ({ channel_id });
 };
+
 
 const handleSubscriberSignup = async (root, args) => {
 
@@ -151,7 +178,7 @@ const handleSubscriberSignup = async (root, args) => {
 
   } catch(error) {
     rollback([], {})(error);
-    return false;
+    throw new Error(error);
   }
 
   try {
@@ -165,9 +192,11 @@ const handleSubscriberSignup = async (root, args) => {
     await createAuth0User(Object.assign({ user_id: stripe_id, role: "subscriber" }, data, Auth0ManagementToken));
 
   } catch(error) {
+
     rollback(["stripe"], {
       user_id: stripe_id
     })(error);
+
     throw new Error(error);
   }
 
@@ -182,17 +211,23 @@ const handleSubscriberSignup = async (root, args) => {
     await createSubscriber(seed);
 
   } catch(error) {
+
     rollback(["stripe", "auth0"], {
       user_id: stripe_id,
       access_token: Auth0ManagementToken.access_token
     })(error);
-    return false;
+
+    throw new Error(error);
   }
 
   return ({ subscriber_id });
 };
 
-////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
+///////////////////////// EXPORTS //////////////////////////
+////////////////////////////////////////////////////////////
+
 
 module.exports = {
   getSignupTokenById: getSignupTokenById,
@@ -200,12 +235,18 @@ module.exports = {
   handleSubscriberSignup: handleSubscriberSignup,
 };
 
-////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
+//////////////////////// FUNCTIONS /////////////////////////
+////////////////////////////////////////////////////////////
+
 
 function rollback(providers, { user_id, product_id, plan_id, access_token }) {
 
   const actions = {
+
     async stripe() {
+
       if (/^acct/.test(user_id)) {
 
         // Delete "channel" user.
@@ -252,8 +293,11 @@ function rollback(providers, { user_id, product_id, plan_id, access_token }) {
           console.error(error.message);
         })
       }
+
     },
+
     auth0() {
+
       const options = {
         method: "DELETE",
         url: `https://${process.env.AUTH0_DOMAIN}/api/v2/users/auth0|${user_id}`,
@@ -262,6 +306,7 @@ function rollback(providers, { user_id, product_id, plan_id, access_token }) {
           "Content-Type": "application/json; charset=utf-8"
         }
       };
+
       console.log(`${"[Auth0] ".padEnd(30, ".")} Rollback: Deleting ${user_id}`);
       request(options, (error, response) => {
         if (error) {
@@ -269,6 +314,7 @@ function rollback(providers, { user_id, product_id, plan_id, access_token }) {
           console.error(error.message);
         }
       });
+
     }
   };
   
@@ -276,64 +322,4 @@ function rollback(providers, { user_id, product_id, plan_id, access_token }) {
     providers.map(provider => actions[provider]());
     console.error(error);
   }
-}
-
-function assertTokenValid(data) {
-  const { token_id } = data;
-  return getSignupTokenById(token_id)
-}
-
-
-function getAuth0ManagementToken() {
-  const options = {
-    method: "POST",
-    url: `https://${process.env.AUTH0_DOMAIN}/oauth/token`,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify({
-      client_id: process.env.AUTH0_M2M_CLIENT_ID,
-      client_secret: process.env.AUTH0_M2M_CLIENT_SECRET,
-      audience: `https://${process.env.AUTH0_DOMAIN}/api/v2/`,
-      grant_type: "client_credentials"
-    })
-  };
-  return new Promise((resolve, reject) => {
-    console.log(`${"[Auth0] ".padEnd(30, ".")} Fetching management token`);
-    request(options, (error, response, body) => {
-     if (error) { reject(error); }
-     else if (response.statusCode !== 200) { reject(`[${response.statusCode}] ${response.statusMessage}`)}
-     else { resolve(JSON.parse(body)); }
-   });
-  });
-}
-
-function createAuth0User({ user_id, role, email, password, access_token }) {
-  const user = {
-    user_id,
-    email,
-    password,
-    email_verified: false,
-    verify_email: false,
-    connection: "Username-Password-Authentication",
-    app_metadata: {
-      roles: [role]
-    }
-  };
-  const options = {
-    method: "POST",
-    url: `https://${process.env.AUTH0_DOMAIN}/api/v2/users`,
-    headers: {
-      "Authorization": `Bearer ${access_token}`,
-      "Content-Type": "application/json; charset=utf-8"
-    },
-    body: JSON.stringify(user)
-  };
-  return new Promise((resolve, reject) => {
-    console.log(`${"[Auth0] ".padEnd(30, ".")} Creating new user ${user_id}`);
-    request(options, (error, response) => {
-      const body = JSON.parse(response.body);
-      if (error) { reject(error); }
-      else if (body.statusCode) { reject(`[${body.statusCode}] ${body.message}`)}
-      else { resolve(body); }
-    });
-  });
 }

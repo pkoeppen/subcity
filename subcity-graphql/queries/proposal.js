@@ -3,49 +3,49 @@ const {
   GraphQLNonNull,
   GraphQLID
 } = require("graphql");
+
 const {
   ProposalType,
   ProposalInputType,
   ProposalVoteInputType
 } = require("../types");
-const {
-  createProposal,
-  submitProposalVote
-} = require("../resolvers").proposal;
 
-///////////////////////////////////////////////////
-//////////////////// MUTATIONS ////////////////////
-///////////////////////////////////////////////////
+const {
+
+  proposal: {
+    createProposal,
+    submitProposalVote
+  }
+  
+} = require("../resolvers");
+
 
 const ProposalMutation = {
 
-  private: {
-
-    createProposal: {
-      type: new GraphQLNonNull(ProposalType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(ProposalInputType)
-        }
-      },
-      resolve: createProposal
+  createProposal: {
+    type: new GraphQLNonNull(ProposalType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(ProposalInputType)
+      }
     },
+    resolve: createProposal
+  },
 
-    submitProposalVote: {
-      type: new GraphQLNonNull(ProposalType),
-      args: {
-        data: {
-          name: "data",
-          type: new GraphQLNonNull(ProposalVoteInputType)
-        }
-      },
-      resolve: submitProposalVote
-    } 
-  }
+  submitProposalVote: {
+    type: new GraphQLNonNull(ProposalType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(ProposalVoteInputType)
+      }
+    },
+    resolve: submitProposalVote
+  } 
+
 }
 
-////////////////////////////////////////////////////
 
 module.exports = {
   ProposalMutation

@@ -6,6 +6,7 @@ const {
   merge,
   omit
 } = require("lodash");
+
 const {
   promisify,
   generateID,
@@ -15,19 +16,20 @@ const {
   sanitize,
   parseMarkdown,
   curateSets,
-  stripeUtilities: {
+  StripeUtilities: {
     createStripePlan,
     handleSubscriptionRateChange
   }
-} = require("../shared");
+} = require("../../shared");
+
 const {
   getChannelById
 } = require("./channel");
 
 
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
+////////////////////////////////////////////////////////////
+///////////////////////// QUERIES //////////////////////////
+////////////////////////////////////////////////////////////
 
 
 const getSyndicateById = (root, args, ctx, ast) => {
@@ -41,14 +43,17 @@ const getSyndicateById = (root, args, ctx, ast) => {
   
   return DynamoDB.get(params).promise()
   .then(({ Item: syndicate }) => {
+
     if (syndicate) {
-      syndicate = curateSets(syndicate);
+
       syndicate.earnings_month = syndicate.subscribers.length * syndicate.subscription_rate;
       syndicate.description = parseMarkdown(syndicate.description, true);
       return syndicate;
+
     } else {
       throw new Error();
     }
+
   })
   .catch(error => {
     console.error(error);
@@ -213,12 +218,12 @@ const createSyndicate = async (root, args, ctx, ast) => {
 
   // Creates a new syndicate in DynamoDB with an associated Stripe plan.
 
+  const syndicate_id = generateID();
   const data = sanitize(args.data);
   const {
     channel_id,
     subscription_rate
   } = data;
-  const syndicate_id = generateID();
 
   // Create Stripe subscription plan for syndicate.
 
@@ -226,7 +231,7 @@ const createSyndicate = async (root, args, ctx, ast) => {
     amount: subscription_rate,
     interval: "month",
     product: {
-      id: `prod_syndicate_${syndicate_id}`,
+      id:   `prod_syndicate_${syndicate_id}`,
       name: `prod_syndicate_${syndicate_id}`
     },
     currency: "usd", // TODO: Modify this
@@ -236,7 +241,7 @@ const createSyndicate = async (root, args, ctx, ast) => {
   try {
     ({ id: plan_id } = await createStripePlan(planOptions));
   } catch(error) {
-    console.error(error);
+    console.error(error.stack);
     throw new Error("Error creating syndicate.");
   }
 
@@ -246,18 +251,8 @@ const createSyndicate = async (root, args, ctx, ast) => {
     syndicate_id,
     plan_id,
     currency: "usd",
-    created_at: new Date().getTime(),
-    profile_url: `${process.env.DATA_HOST}/${process.env.S3_BUCKET_OUT}/syndicates/${syndicate_id}/profile.jpeg`,
-    earnings_total: 0,
-    subscriber_count: 0,
-    channels: {
-      [channel_id]: {
-        earnings_cut: 0,
-        member_since: new Date().getTime()
-      }
-    },
-    proposals: DynamoDB.createSet(["__DEFAULT__"]),
-    subscribers: DynamoDB.createSet(["__DEFAULT__"])
+    time_created: new Date().getTime(),
+    time_updated: null
   };
 
   // Merge the objects, omitting "channel_id".
@@ -271,19 +266,23 @@ const createSyndicate = async (root, args, ctx, ast) => {
     Item: syndicate
   }).promise();
 
-  // ...and add the syndicate to the channel that created it.
+  // ...and add create a membership for the channel.
 
-  const b = DynamoDB.update({
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id },
-    UpdateExpression: "ADD syndicates :syndicate_id",
-    ExpressionAttributeValues: { ":syndicate_id": DynamoDB.createSet([syndicate_id]) }
+  const membership = {
+    channel_id,
+    syndicate_id,
+    time_created: Date.now()
+  };
+
+  const b = DynamoDB.put({
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    Item: membership
   }).promise();
 
   return Promise.all([a,b])
   .then(values => syndicate)
   .catch(error => {
-    console.error(error);
+    console.error(error.stack);
     throw new Error("Error creating syndicate.");
   });
 };
