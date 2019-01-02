@@ -2,24 +2,29 @@ const {
   GraphQLBoolean,
   GraphQLFloat,
   GraphQLID,
+  GraphQLInt,
   GraphQLNonNull
 } = require("graphql");
 
 const {
   InitializeSubscriberInputType,
+  SubscriberInputType,
   SubscriberType,
   SubscriberPaymentSettingsType,
   SubscriberPaymentSettingsInputType,
-  ModifySubscriptionInputType
+  SubscriptionType,
+  SubscriptionInputType
 } = require("../types");
 
 const {
   initializeSubscriber,
   getSubscriberById,
   getSubscriberPaymentSettings,
-  modifySubscription,
-  updatePaymentSettings
-} = require("../resolvers").subscriber;
+  createSubscription,
+  deleteSubscription,
+  updatePaymentSettings,
+  updateSubscriber
+} = require("../resolvers");
 
 
 const SubscriberQuery = {
@@ -40,28 +45,99 @@ const SubscriberQuery = {
 
 const SubscriberMutation = {
 
-  initializeSubscriber: {
+  createSubscription: {
+    type: new GraphQLNonNull(SubscriptionType),
+    args: {
+      channel_id: {
+        name: "channel_id",
+        type: GraphQLID
+      },
+      extra: {
+        name: "extra",
+        type: new GraphQLNonNull(GraphQLInt)
+      },
+      syndicate_id: {
+        name: "syndicate_id",
+        type: GraphQLID
+      },
+      tier: {
+        name: "tier",
+        type: new GraphQLNonNull(GraphQLInt)
+      }
+    },
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        subscriber_id
+      } = ctx;
+
+      return createSubscription(subscriber_id, args);
+    }
+  },
+
+  deleteSubscription: {
     type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      subscription_id: {
+        name: "subscription_id",
+        type: GraphQLID
+      }
+    },
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        subscriber_id
+      } = ctx;
+
+      const {
+        subscription_id
+      } = args;
+
+      return deleteSubscription(subscriber_id, subscription_id);
+    }
+  },
+
+  initializeSubscriber: {
+    type: new GraphQLNonNull(SubscriberType),
     args: {
       data: {
         name: "data",
         type: new GraphQLNonNull(InitializeSubscriberInputType)
       }
     },
-    resolve: initializeSubscriber
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        ip_address
+      } = ctx;
+
+      const data = Object.assign({}, args.data, { ip_address });
+
+      return initializeSubscriber(data);
+    }
   },
 
-  modifySubscription: {
-    type: new GraphQLNonNull(GraphQLBoolean),
+  updateSubscriber: {
+    type: new GraphQLNonNull(SubscriberType),
     args: {
       data: {
         name: "data",
-        type: new GraphQLNonNull(ModifySubscriptionInputType)
+        type: new GraphQLNonNull(SubscriberInputType)
       }
     },
-    resolve: modifySubscription
-  }
+    resolve: (root, args, ctx, ast) => {
 
+      const {
+        subscriber_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return updateSubscriber(subscriber_id, data);
+    }
+  },
 };
 
 

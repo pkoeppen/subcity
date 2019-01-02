@@ -4,7 +4,7 @@
   "license": "UNLICENSED",
   "description": "A GraphQL endpoint for both public and private queries.",
   "scripts": {
-    "test": "mocha --timeout 15000 \"./tests/**/*.test.js\""
+    "test": "mocha --timeout 15000 --slow 5000 \"./tests/index.js\""
   },
   "dependencies": {
     "aws-sdk": "^2.377.0",

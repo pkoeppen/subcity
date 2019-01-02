@@ -3,9 +3,9 @@ AWS.config.update({
 	region: "us-east-1"
 });
 
-////////////////////////////////////////////////////
 
 const DynamoDB = new AWS.DynamoDB.DocumentClient();
+
 const S3 = new AWS.S3({
   apiVersion: "2006-03-01",
   signatureVersion: "v4",
@@ -13,7 +13,6 @@ const S3 = new AWS.S3({
   endpoint: process.env.DATA_HOST
 });
 
-////////////////////////////////////////////////////
 
 module.exports = {
   DynamoDB,

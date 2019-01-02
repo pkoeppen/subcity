@@ -10,24 +10,25 @@ const {
 const {
   ChannelType,
   ChannelInputType,
-  ChannelPaymentSettingsType,
-  ChannelPaymentSettingsInputType,
+  PayoutSettingsType,
+  PayoutSettingsInputType,
   ChannelRangeInputType,
   InitializeChannelInputType
 } = require("../types");
 
 const {
 
-  channel: {
-    assertTokenExists,
-    initializeChannel,
-    getChannelById,
-    getChannelBySlug,
-    getChannelsByRange,
-    getChannelPaymentSettings,
-    updateChannel,
-    updateChannelPaymentSettings  
-  }
+  answerInvitation,
+  assertTokenExists,
+  deleteChannel,
+  getChannelById,
+  initializeChannel,
+
+  getChannelBySlug,
+  getChannelsByRange,
+  getPayoutSettings,
+  updateChannel,
+  updatePayoutSettings
   
 } = require("../resolvers");
 
@@ -35,6 +36,7 @@ const {
 const ChannelQuery = {
 
   getChannelById: {
+
     type: ChannelType,
     args: {
       channel_id: {
@@ -42,7 +44,15 @@ const ChannelQuery = {
         type: new GraphQLNonNull(GraphQLID)
       }
     },
-    resolve: getChannelById
+
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      return getChannelById(channel_id);
+    }
   },
 
   getChannelsByRange: {
@@ -73,55 +83,126 @@ const ChannelQuery = {
     resolve: getChannelBySlug
   },
 
-  getChannelPaymentSettings: {
-    type: ChannelPaymentSettingsType,
+  getPayoutSettings: {
+    type: PayoutSettingsType,
     args: {
       channel_id: {
         name: "channel_id",
         type: new GraphQLNonNull(GraphQLID)
       }
     },
-    resolve: getChannelPaymentSettings
+    resolve: getPayoutSettings
   }
 
 };
 
+
 const ChannelMutation = {
 
-  initializeChannel: {
+  answerInvitation: {
     type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      decision: {
+        name: "decision",
+        type: new GraphQLNonNull(GraphQLBoolean)
+      },
+      syndicate_id: {
+        name: "syndicate_id",
+        type: new GraphQLNonNull(GraphQLID)
+      }
+    },
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        decision,
+        syndicate_id
+      } = args;
+
+      return answerInvitation(channel_id, syndicate_id, decision);
+    }
+  },
+
+  deleteChannel: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      return deleteChannel(channel_id);
+    }
+  },
+
+  initializeChannel: {
+    type: new GraphQLNonNull(ChannelType),
     args: {
       data: {
         name: "data",
         type: new GraphQLNonNull(InitializeChannelInputType)
       }
     },
-    resolve: initializeChannel
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        ip_address
+      } = ctx;
+
+      const data = Object.assign({}, args.data, { ip_address });
+
+      return initializeChannel(data);
+    }
   },
 
   updateChannel: {
-    type: new GraphQLNonNull(GraphQLBoolean),
+    type: new GraphQLNonNull(ChannelType),
     args: {
       data: {
         name: "data",
         type: new GraphQLNonNull(ChannelInputType)
       }
     },
-    resolve: updateChannel
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return updateChannel(channel_id, data);
+    }
   },
 
-  updateChannelPaymentSettings: {
+  updatePayoutSettings: {
     type: new GraphQLNonNull(GraphQLBoolean),
     args: {
       data: {
         name: "data",
-        type: new GraphQLNonNull(ChannelPaymentSettingsInputType)
+        type: new GraphQLNonNull(PayoutSettingsInputType)
       }
     },
-    resolve: updateChannelPaymentSettings
-  }
+    resolve: (root, args, ctx, ast) => {
 
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return updatePayoutSettings(channel_id, data)
+    }
+  }
 };
+
 
 const TokenQuery = {
 
@@ -133,14 +214,16 @@ const TokenQuery = {
         type: new GraphQLNonNull(GraphQLID)
       }
     },
-    resolve: assertTokenExists
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        token_id
+      } = args;
+
+      return assertTokenExists(token_id);
+    }
   }
 };
-
-
-////////////////////////////////////////////////////////////
-////////////////////////// EXPORTS /////////////////////////
-////////////////////////////////////////////////////////////
 
 
 module.exports = {

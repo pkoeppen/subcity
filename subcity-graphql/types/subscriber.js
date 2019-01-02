@@ -11,16 +11,9 @@ const {
 } = require("graphql");
 
 const {
-
-  channel: {
-    getChannelsByIdArray
-  },
-
-  syndicate: {
-    getSyndicatesByIdArray
-  }
-  
-} = require("../resolvers");
+  AddressInputType,
+  AddressType
+} = require("./misc");
 
 
 const InitializeSubscriberInputType = new GraphQLInputObjectType({
@@ -38,34 +31,46 @@ const SubscriberType = new GraphQLObjectType({
   name: "Subscriber",
   fields: () => ({
 
-    subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
-    time_created:  { type: new GraphQLNonNull(GraphQLFloat) }
+    address:       { type: AddressType                       },
+    alias:         { type: GraphQLString                     },
+    email:         { type: new GraphQLNonNull(GraphQLString) },
+    subscriber_id: { type: new GraphQLNonNull(GraphQLID)     },
+    time_created:  { type: new GraphQLNonNull(GraphQLFloat)  }
 
   })
 });
 
-const ModifySubscriptionInputType = new GraphQLInputObjectType({
-  name: "ModifySubscriptionInput",
+const SubscriberInputType = new GraphQLInputObjectType({
+  name: "SubscriberInput",
   fields: () => ({
 
-    subscriber_id: { type: new GraphQLNonNull(GraphQLID) },
+    alias:    { type: GraphQLString    },
+    address:  { type: AddressInputType },
+    email:    { type: GraphQLString    },
+    password: { type: GraphQLString    }
 
-    // Subscription to be modified.
-    // Note: "_" is there because "channel_id" is reserved.
-    // "_syndicate_id" gets it too, just for the sake of uniformity.
+  })
+});
 
-    _channel_id:   { type: GraphQLString },
-    _syndicate_id: { type: GraphQLString },
-    subscribe:     { type: new GraphQLNonNull(GraphQLBoolean) }
+const SubscriptionType = new GraphQLObjectType({
+  name: "Subscription",
+  fields: () => ({
+
+    channel_id:      { type: GraphQLID                        },
+    extra:           { type: new GraphQLNonNull(GraphQLInt)   },
+    subscriber_id:   { type: new GraphQLNonNull(GraphQLID)    },
+    subscription_id: { type: new GraphQLNonNull(GraphQLID)    },
+    syndicate_id:    { type: GraphQLID                        },
+    tier:            { type: new GraphQLNonNull(GraphQLInt)   },
+    time_created:    { type: new GraphQLNonNull(GraphQLFloat) }
 
   })
 });
 
 
 module.exports = {
-
   InitializeSubscriberInputType,
+  SubscriberInputType,
   SubscriberType,
-  ModifySubscriptionInputType
-
+  SubscriptionType
 };

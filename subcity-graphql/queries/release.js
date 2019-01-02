@@ -1,28 +1,25 @@
 const {
-  GraphQLID,
-  GraphQLList,
-  GraphQLString,
+  GraphQLBoolean,
+  GraphQLFloat,
   GraphQLNonNull
 } = require("graphql");
 
 const {
   ReleaseType,
-  ReleaseInputType,
+  ReleaseInputType
 } = require("../types");
 
 const {
-
-  release: {
-    createRelease,
-    updateRelease
-  }
-
+  createRelease,
+  deleteRelease,
+  updateRelease
 } = require("../resolvers");
 
 
 const ReleaseMutation = {
 
   createRelease: {
+
     type: new GraphQLNonNull(ReleaseType),
     args: {
       data: {
@@ -30,23 +27,73 @@ const ReleaseMutation = {
         type: new GraphQLNonNull(ReleaseInputType)
       }
     },
-    resolve: createRelease
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return createRelease(channel_id, data);
+    }
+  },
+
+  deleteRelease: {
+
+    type: new GraphQLNonNull(GraphQLBoolean),
+    args: {
+      time_created: {
+        name: "time_created",
+        type: new GraphQLNonNull(GraphQLFloat)
+      }
+    },
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        time_created
+      } = args;
+
+      return deleteRelease(channel_id, time_created);
+    }
   },
 
   updateRelease: {
+
     type: new GraphQLNonNull(ReleaseType),
     args: {
+      time_created: {
+        name: "time_created",
+        type: new GraphQLNonNull(GraphQLFloat)
+      },
       data: {
         name: "data",
         type: new GraphQLNonNull(ReleaseInputType)
       }
     },
-    resolve: updateRelease
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        time_created,
+        data
+      } = args;
+
+      return updateRelease(channel_id, time_created, data);
+    }
   }
 
 };
 
-////////////////////////////////////////////////////
 
 module.exports = {
   ReleaseMutation

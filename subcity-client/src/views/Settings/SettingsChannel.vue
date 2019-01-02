@@ -491,6 +491,7 @@ export default {
     openPayloadFileInput() {
       this.$refs.payloadFileInput.click();
     },
+
     setPayloadFile(event) {
       if (event.target.files && event.target.files[0]) {
         var file = event.target.files[0];
@@ -503,9 +504,10 @@ export default {
 
     handleUpdate(e) {
       e.preventDefault();
-      if (this.dataChanged) { this.data.state = "loading" }
+
+      if (this.dataChanged)         { this.data.state = "loading" }
       if (this.profileImageChanged) { this.profileImage.state = "loading" }
-      if (this.payloadFileChanged) { this.payloadFile.state = "loading" }
+      if (this.payloadFileChanged)  { this.payloadFile.state = "loading" }
 
       // Execute the upload process.
 

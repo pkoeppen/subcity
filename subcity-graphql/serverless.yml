@@ -135,6 +135,43 @@ resources:
         BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_CHANNELS}"
 
+    ### InvitationsTable
+
+    InvitationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+
+        AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
+        - AttributeName: syndicate_id
+          AttributeType: S
+
+        KeySchema:
+
+          # Default - Query invitations by channel_id.
+
+        - AttributeName: channel_id
+          KeyType: HASH
+        - AttributeName: syndicate_id
+          KeyType: RANGE
+
+        GlobalSecondaryIndexes:
+
+          # GSI to query invitations by syndicate_id.
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_INVITATIONS}-GSI"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          - AttributeName: channel_id
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_INVITATIONS}"
+
     ### MembershipsTable
 
     MembershipsTable:
@@ -167,9 +204,7 @@ resources:
           - AttributeName: channel_id
             KeyType: RANGE
           Projection:
-            NonKeyAttributes:
-            - time_created
-            ProjectionType: INCLUDE
+            ProjectionType: ALL
 
         BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_MEMBERSHIPS}"
@@ -283,10 +318,10 @@ resources:
         AttributeDefinitions:
         - AttributeName: channel_id
           AttributeType: S
-        - AttributeName: time_created
-          AttributeType: N
         - AttributeName: slug
           AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
 
         KeySchema:
         - AttributeName: channel_id
@@ -377,17 +412,17 @@ resources:
         AttributeDefinitions:
         - AttributeName: subscriber_id
           AttributeType: S
+        - AttributeName: subscription_id
+          AttributeType: S
         - AttributeName: channel_id
           AttributeType: S
         - AttributeName: syndicate_id
           AttributeType: S
-        - AttributeName: time_created
-          AttributeType: N
 
         KeySchema:
         - AttributeName: subscriber_id
           KeyType: HASH
-        - AttributeName: time_created
+        - AttributeName: subscription_id
           KeyType: RANGE
 
         GlobalSecondaryIndexes:

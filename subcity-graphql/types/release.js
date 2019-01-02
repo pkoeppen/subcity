@@ -1,52 +1,47 @@
 const {
-  GraphQLBoolean,
   GraphQLID,
   GraphQLInt,
-  GraphQLList,
   GraphQLObjectType,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLString,
   GraphQLNonNull,
 } = require("graphql");
 
+const {
+  MarkdownType
+} = require("./misc");
+
+
 const ReleaseType = new GraphQLObjectType({
   name: "Release",
   fields: () => ({
-    
-    // Key.
 
-    release_id: { type: new GraphQLNonNull(GraphQLID) },
-    channel_id: { type: new GraphQLNonNull(GraphQLID) },
+    channel_id:   { type: new GraphQLNonNull(GraphQLID)     },
+    download_url: { type: GraphQLString                     },
+    overview:     { type: new GraphQLNonNull(MarkdownType)  },
+    payload:      { type: GraphQLString                     },
+    slug:         { type: new GraphQLNonNull(GraphQLString) },
+    time_created: { type: new GraphQLNonNull(GraphQLFloat)  },
+    time_updated: { type: new GraphQLNonNull(GraphQLFloat)  },
+    title:        { type: new GraphQLNonNull(GraphQLString) }
 
-    // Non-editable.
-
-    created_at:   { type: new GraphQLNonNull(GraphQLInt) },
-    profile_url:  { type: new GraphQLNonNull(GraphQLString) },
-    banner_url:   { type: new GraphQLNonNull(GraphQLString) },
-    likes:        { type: new GraphQLNonNull(GraphQLInt) },
-    dislikes:     { type: new GraphQLNonNull(GraphQLInt) },
-    download_url: { type: GraphQLString },
-
-    // Editable.
-
-    slug:        { type: new GraphQLNonNull(GraphQLString) },
-    title:       { type: new GraphQLNonNull(GraphQLString) },
-    description: { type: new GraphQLNonNull(GraphQLString) },
-    payload_url: { type: GraphQLString }
   })
 });
 
 const ReleaseInputType = new GraphQLInputObjectType({
   name: "ReleaseInput",
   fields: () => ({
-    release_id:  { type: GraphQLID },
-    channel_id:  { type: new GraphQLNonNull(GraphQLID) },
+
+    overview:    { type: new GraphQLNonNull(GraphQLString) },
+    payload:     { type: GraphQLString                     },
     slug:        { type: new GraphQLNonNull(GraphQLString) },
-    title:       { type: new GraphQLNonNull(GraphQLString) },
-    description: { type: new GraphQLNonNull(GraphQLString) },
-    payload_url: { type: GraphQLString },
+    tier:        { type: new GraphQLNonNull(GraphQLInt)    },
+    title:       { type: new GraphQLNonNull(GraphQLString) }
+
   })
 });
+
 
 module.exports = {
   ReleaseType,

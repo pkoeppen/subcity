@@ -7,20 +7,38 @@ const {
 const {
   ProposalType,
   ProposalInputType,
-  ProposalVoteInputType
+  VoteInputType
 } = require("../types");
 
 const {
-
-  proposal: {
-    createProposal,
-    submitProposalVote
-  }
-  
+  castVote,
+  createProposal,
 } = require("../resolvers");
 
 
 const ProposalMutation = {
+
+  castVote: {
+    type: new GraphQLNonNull(ProposalType),
+    args: {
+      data: {
+        name: "data",
+        type: new GraphQLNonNull(VoteInputType)
+      }
+    },
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return castVote(channel_id, data);
+    }
+  },
 
   createProposal: {
     type: new GraphQLNonNull(ProposalType),
@@ -30,18 +48,18 @@ const ProposalMutation = {
         type: new GraphQLNonNull(ProposalInputType)
       }
     },
-    resolve: createProposal
-  },
+    resolve: (root, args, ctx, ast) => {
 
-  submitProposalVote: {
-    type: new GraphQLNonNull(ProposalType),
-    args: {
-      data: {
-        name: "data",
-        type: new GraphQLNonNull(ProposalVoteInputType)
-      }
-    },
-    resolve: submitProposalVote
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return createProposal(channel_id, data);
+    }
   } 
 
 }

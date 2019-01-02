@@ -1,5 +1,5 @@
 const {
-  GraphQLID,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLNonNull,
   GraphQLString
@@ -13,10 +13,8 @@ const UploadURLInputType = new GraphQLInputObjectType({
     mime_type:    { type: new GraphQLNonNull(GraphQLString) },
     upload_type:  { type: new GraphQLNonNull(GraphQLString) },
     filename:     { type: new GraphQLNonNull(GraphQLString) },
-    channel_id:   { type: new GraphQLNonNull(GraphQLString) },
-    release_id:   { type: GraphQLString },
-    syndicate_id: { type: GraphQLString },
-    proposal_id:  { type: GraphQLString }
+    time_created: { type: GraphQLFloat },
+    syndicate_id: { type: GraphQLString }
 
   })
 });

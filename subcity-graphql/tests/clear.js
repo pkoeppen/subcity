@@ -12,12 +12,22 @@ const request = require("request");
 const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
 
 
-////////////////////////////////////////////////////////////
-////////////////////////// CLEAR ///////////////////////////
-////////////////////////////////////////////////////////////
+module.exports = {
+  all,
+  auth0:       clearAuth0,
+  dynamoDB:    clearDynamoDB,
+  invitations: deleteInvitationsTable,
+  proposals:   deleteProposalsTable,
+  releases:    deleteReleasesTable,
+  s3:          clearS3,
+  slugs:       deleteSlugsTable,
+  stripe:      clearStripe,
+  subscribers: deleteSubscribersTable,
+  syndicates:  deleteSyndicatesTable
+};
 
 
-function clear() {
+function all() {
   return Promise.all([
     clearAuth0(),
     clearDynamoDB(),
@@ -45,6 +55,7 @@ function clearDynamoDB() {
 
   return Promise.all([
     deleteChannelsTable(),
+    deleteInvitationsTable(),
     deleteMembershipsTable(),
     deletePaymentsTable(),
     deleteProposalsTable(),
@@ -66,7 +77,7 @@ async function clearS3() {
 
     return Promise.all(objects.map(({ Key }) => {
 
-      console.log(`${"[S3:IN] ".padEnd(30, ".")} Deleting ${Key}`);
+      console.log(`[S3:IN] Deleting ${Key}`);
       return S3.deleteObject({
         Bucket: process.env.S3_BUCKET_IN,
         Key
@@ -80,7 +91,7 @@ async function clearS3() {
 
     return Promise.all(objects.map(({ Key }) => {
 
-      console.log(`${"[S3:OUT] ".padEnd(30, ".")} Deleting ${Key}`);
+      console.log(`[S3:OUT] Deleting ${Key}`);
       return S3.deleteObject({
         Bucket: process.env.S3_BUCKET_OUT,
         Key
@@ -98,26 +109,38 @@ async function clearStripe() {
   // Delete everything but the plans...
 
   await Promise.all([
-    stripe.customers.list({ limit: 100 })
-    .then(({ data }) => {
-      const toDelete = data.map(({ id }) => {
-        console.log(`${"[Stripe] ".padEnd(30, ".")} Deleting ${id}`);
-        return stripe.customers.del(id);
-      });
-      return toDelete;
-    }),
+
     stripe.accounts.list({ limit: 100 })
     .then(({ data }) => {
       const toDelete = data.map(({ id }) => {
-        console.log(`${"[Stripe] ".padEnd(30, ".")} Deleting ${id}`);
+        console.log(`[Stripe] Deleting ${id}`);
         return stripe.account.del(id);
       });
       return toDelete;
     }),
+
+    stripe.coupons.list({ limit: 100 })
+    .then(({ data }) => {
+      const toDelete = data.map(({ id }) => {
+        console.log(`[Stripe] Deleting ${id}`);
+        return stripe.coupons.del(id);
+      });
+      return toDelete;
+    }),
+
+    stripe.customers.list({ limit: 100 })
+    .then(({ data }) => {
+      const toDelete = data.map(({ id }) => {
+        console.log(`[Stripe] Deleting ${id}`);
+        return stripe.customers.del(id);
+      });
+      return toDelete;
+    }),
+
     stripe.plans.list({ limit: 100 })
     .then(({ data }) => {
       const toDelete = data.map(({ id }) => {
-        console.log(`${"[Stripe] ".padEnd(30, ".")} Deleting ${id}`)
+        console.log(`[Stripe] Deleting ${id}`)
         return stripe.plans.del(id);
       });
       return toDelete;
@@ -129,14 +152,11 @@ async function clearStripe() {
   await stripe.products.list({ limit: 100 })
   .then(({ data }) => {
     const toDelete = data.map(({ id }) => {
-      console.log(`${"[Stripe] ".padEnd(30, ".")} Deleting ${id}`)
-      return stripe.products.del(id)
-      .catch(error => console.error(`Error: Could not delete ${id}.`));
+      console.log(`[Stripe] Deleting ${id}`)
+      return stripe.products.del(id);
     });
     return toDelete;
   });
-
-  return Promise.resolve();
 }
 
 
@@ -192,7 +212,7 @@ function deleteAuth0Users({ users, access_token }) {
       }
     };
     return new Promise((resolve, reject) => {
-      console.log(`${"[Auth0] ".padEnd(30, ".")} Deleting ${user_id}`);
+      console.log(`[Auth0] Deleting ${user_id}`);
       request(params, (error, response, body) => resolve("success"));
     });
   });
@@ -207,8 +227,25 @@ function deleteChannelsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id }) => {
-      console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Deleting ${channel_id}`);
+      console.log(`[DynamoDB:CHANNELS] Deleting ${channel_id}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id }})).promise();
+    });
+  });
+}
+
+
+function deleteInvitationsTable() {
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_INVITATIONS
+  };
+  return DynamoDB.scan(params).promise()
+  .then(({ Items }) => {
+    Items.map(({ channel_id, syndicate_id }) => {
+      console.log(`[DynamoDB:INVITATIONS] Deleting ${channel_id}:${syndicate_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: {
+        channel_id,
+        syndicate_id
+      }})).promise();
     });
   });
 }
@@ -221,7 +258,7 @@ function deleteMembershipsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id, syndicate_id }) => {
-      console.log(`${"[DynamoDB:MEMBERSHIPS]".padEnd(30, ".")} Deleting ${channel_id}:${syndicate_id}`);
+      console.log(`[DynamoDB:MEMBERSHIPS]Deleting ${channel_id}:${syndicate_id}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id, syndicate_id }})).promise();
     });
   });
@@ -235,7 +272,7 @@ function deletePaymentsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id, time_created }) => {
-      console.log(`${"[DynamoDB:PAYMENTS]".padEnd(30, ".")} Deleting ${channel_id}:${time_created}`);
+      console.log(`[DynamoDB:PAYMENTS]Deleting ${channel_id}:${time_created}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id, time_created }})).promise();
     });
   });
@@ -249,7 +286,7 @@ function deleteProposalsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ syndicate_id, time_created }) => {
-      console.log(`${"[DynamoDB:PROPOSALS] ".padEnd(30, ".")} Deleting ${syndicate_id}:${time_created}`);
+      console.log(`[DynamoDB:PROPOSALS] Deleting ${syndicate_id}:${time_created}`);
       return DynamoDB.delete(Object.assign(params, { Key: { syndicate_id, time_created }})).promise();
     });
   });
@@ -263,7 +300,7 @@ function deleteReleasesTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id, time_created }) => {
-      console.log(`${"[DynamoDB:RELEASES] ".padEnd(30, ".")} Deleting ${channel_id}:${time_created}`);
+      console.log(`[DynamoDB:RELEASES] Deleting ${channel_id}:${time_created}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id, time_created }})).promise();
     });
   });
@@ -277,7 +314,7 @@ function deleteSlugsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ slug }) => {
-      console.log(`${"[DynamoDB:SLUGS]".padEnd(30, ".")} Deleting ${slug}`);
+      console.log(`[DynamoDB:SLUGS] Deleting ${slug}`);
       return DynamoDB.delete(Object.assign(params, { Key: { slug }})).promise();
     });
   });
@@ -291,7 +328,7 @@ function deleteSubscribersTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ subscriber_id }) => {
-      console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Deleting ${subscriber_id}`);
+      console.log(`[DynamoDB:SUBSCRIBERS] Deleting ${subscriber_id}`);
       return DynamoDB.delete(Object.assign(params, { Key: { subscriber_id }})).promise();
     });
   });
@@ -304,9 +341,9 @@ function deleteSubscriptionsTable() {
   };
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
-    Items.map(({ subscriber_id, time_created }) => {
-      console.log(`${"[DynamoDB:SUBSCRIPTIONS]".padEnd(30, ".")} Deleting ${subscriber_id}:${time_created}`);
-      return DynamoDB.delete(Object.assign(params, { Key: { subscriber_id, time_created }})).promise();
+    Items.map(({ subscriber_id, subscription_id }) => {
+      console.log(`[DynamoDB:SUBSCRIPTIONS] Deleting ${subscriber_id}:${subscription_id}`);
+      return DynamoDB.delete(Object.assign(params, { Key: { subscriber_id, subscription_id }})).promise();
     });
   });
 }
@@ -319,11 +356,8 @@ function deleteSyndicatesTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ syndicate_id }) => {
-      console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Deleting ${syndicate_id}`);
+      console.log(`[DynamoDB:SYNDICATES] Deleting ${syndicate_id}`);
       return DynamoDB.delete(Object.assign(params, { Key: { syndicate_id }})).promise();
     });
   });
 }
-
-
-module.exports = clear;

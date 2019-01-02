@@ -8,11 +8,7 @@ const {
 } = require("../types")
 
 const {
-
-  upload: {
-    getUploadURL
-  }
-
+  getUploadURL
 } = require("../resolvers");
 
 
@@ -26,7 +22,18 @@ const UploadQuery = {
         type: new GraphQLNonNull(UploadURLInputType)
       }
     },
-    resolve: getUploadURL
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return getUploadURL(channel_id, data);
+    }
   }
 
 };

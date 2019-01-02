@@ -74,52 +74,93 @@ const server           = mockServer(typeDefinitions);
 
 // (x2)
 
+// Update channel/subscriber login settings
+// Update subscriber contact information/address
+// Channel: Enable tiers
+// - Channel creates release with Tier 3, people subscribe
+// - Channel disables Tier 2 and 3
+// - All Tier 2 and 3 subscriptions are downgraded to Tier 1
+// - Releases left at Tier 3 get icon notifying channel that no one can see them
+// - Tier 1 < Tier 2 < Tier 3
+
+// - Remove "move subscribers to new plan" option completely
+
+/*
+
+If channel to which a subscriber is already subscribed joins a syndicate
+
+Subscription Object
+
+Subscribed to channel directly:
+{
+  subscriber_id: "subscriber_123"
+  channel_id: "channel_123",
+  syndicate_id: null,
+  tier: 1,
+  time_created: 7898238741,
+  time_updated: 7809981246
+}
+
+Subscribed to channel through syndicate:
+{
+  subscriber_id: "subscriber_123"
+  channel_id: "channel_123",
+  syndicate_id: "syndicate_123"
+  tier: 1,
+  time_created: 7898238741,
+  time_updated: 7809981246
+}
+
+*/
+
 // ### CHANNEL SIGNUP
-// getSignupToken                 (test: token exists)
-// channelSignup                  (test: channel exists in DB)
-// updateChannel / getUploadURL   (test: updates exist in DB, uploads exist in S3)
+// x getSignupToken                 (test: token exists)
+// x channelSignup                  (test: channel exists in DB)
 
 // ### UPDATE CHANNEL
-// updateChannelPaymentSettings   (test: updates exist in Stripe)
+// x updateChannel / getUploadURL   (test: updates exist in DB, uploads exist in S3)
+// x updateChannelPaymentSettings   (test: updates exist in Stripe)
+
+// ### CREATE/UPDATE RELEASE
 // createRelease / getUploadURL   (test: release exists in DB, uploads exist in S3)
 // updateRelease                  (test: updates exist in DB, uploads exist in S3)
 
 // ### CREATE SYNDICATE
 // createSyndicate / getUploadURL (test: release exists in DB, uploads exist in S3)
 
-// ### CREATE/IMPLEMENT PROPOSAL
+// ### invite
+// createProposal                 (test: proposal exists in DB)
+// submitProposalVote             (test: invite message exists in DB)
+// respondToSyndicateInvite       (test: membership exists in DB) (change to joinSyndicate, vetted by invitation token?)
+
+// ### merge
+// createProposal                 (test: proposal exists in DB)
+// submitProposalVote             (test: proposal exists in DB)
+// submitProposalVote             (test: updates exist in DB)
+
+// ### leave
+// leaveSyndicate                 (test: membership removed from DB)
+
+// ### dissolve
+// createProposal                 (test: proposal exists in DB)
+// submitProposalVote             (test: memberships "active" set to false, syndicate "dissolved" set to true, slug removed from DB, subscriptions cancelled)
+
+// ### CREATE/APPLY PROPOSAL
 // createProposal                 (test: proposal exists in DB, uploads exist in S3)
 // submitProposalVote             (test: changes applied to syndicate in DB)
 
 // ### SUBSCRIBER SIGNUP
 // subscriberSignup               (test: subscriber exists in DB)
 
-// ### SUBSCRIBE TO CHANNEL
+// ### subscribe to channel
 // modifySubscription             (test: subscription to channel-0 exists in DB, payment history exists)
 
-// ### UNSUBSCRIBE FROM CHANNEL
+// ### unsubscribe from channel
 // modifySubscription             (test: subscription to channel-0 removed from DB)
 
-// ### SUBSCRIBE TO SYNDICATE (that contains a channel to which the subscriber is already subscribed)
+// ### subscribe to syndicate (that contains a channel to which the subscriber is already subscribed)
 // modifySubscription             (resubscribe to channel-0)
 // modifySubscription             (test: subscription to syndicate-0 exists in DB, subscription to channel-0 removed, payment history exists)
-
-// ### INVITE CHANNEL
-// createProposal                 (test: proposal exists in DB)
-// submitProposalVote             (test: invite message exists in DB)
-// respondToSyndicateInvite       (test: membership exists in DB) (change to joinSyndicate, vetted by invitation token?)
-
-// ### MERGE SYNDICATE
-// createProposal                 (test: proposal exists in DB)
-// submitProposalVote             (test: proposal exists in DB)
-// submitProposalVote             (test: updates exist in DB)
-
-// ### LEAVE SYNDICATE
-// leaveSyndicate                 (test: membership removed from DB)
-
-// ### DISSOLVE SYNDICATE
-// createProposal                 (test: proposal exists in DB)
-// submitProposalVote             (test: memberships "active" set to false, syndicate "dissolved" set to true, slug removed from DB, subscriptions cancelled)
 
 before(async function() {
 
@@ -163,6 +204,7 @@ before(async function() {
   });
 });
 
+const channels = {};
 
 describe("Channel Signup", function() {
 
@@ -233,8 +275,13 @@ describe("Channel Signup", function() {
     };
 
     it("should successfully sign up a new channel", async () => {
-      const actual = await graphql(schema, query, null, ctx, vars);
-      expect(actual).to.deep.equal(expected);
+      const {
+        data: {
+          initializeChannel: channel_id
+        }
+      } = await graphql(schema, query, null, ctx, vars);
+      channels.channel_0 = channel_id;
+      expect(channel_id).to.be.a("string");
     });
 
     it("should expend the signup token", async () => {
@@ -248,4 +295,47 @@ describe("Channel Signup", function() {
     });
 
   });
+});
+
+
+describe("Channel Update", function() {
+
+  describe("updateChannel", function() {
+
+    const query = `
+      mutation($data: ChannelInput!) {
+        updateChannel(data: $data)
+      }
+    `;
+
+    const ctx = {
+      channel_id: channels.channel_0,
+      ip_address: "127.0.0.1"
+    };
+    console.log("test channel_id\n\n\n\n", channels.channel_0)
+
+    const vars = {
+      data: {
+        description: "description_0",
+        unlisted:    true,
+        overview:    "overview_0",
+        payload_url: "payload.jpg",
+        slug:        "slug-0",
+        // rate:        499
+        title:       "title_0",
+      }
+    };
+
+    const expected = {
+      data: {
+        updateChannel: true
+      }
+    };
+
+    it("should return true (that the signup token exists)", async () => {
+      const actual = await graphql(schema, query, null, ctx, vars);
+      expect(actual).to.deep.equal(expected);
+    });
+  });
+
 });

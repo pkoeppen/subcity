@@ -1,10 +1,6 @@
 const AWS   = require("aws-sdk");
 const sharp = require("sharp");
 
-const DATA_HOST     = process.env.DATA_HOST;
-const S3_BUCKET_IN  = process.env.S3_BUCKET_IN;
-const S3_BUCKET_OUT = process.env.S3_BUCKET_OUT;
-
 AWS.config.update({
   region: "us-east-1"
 });
@@ -14,6 +10,16 @@ const S3 = new AWS.S3({
   s3ForcePathStyle: true,
   endpoint: process.env.DATA_HOST
 });
+
+
+/*
+
+TODO:
+
+Add a hook in here that updates the (channel|release|syndicate)'s
+payload field in DynamoDB.
+
+*/
 
 
 ////////////////////////////////////////////////////
@@ -45,15 +51,15 @@ module.exports.postprocess = (event, context, callback) => {
 
 async function processImageFile(key, callback) {
 
-  console.log(`[S3] Processing image file ${key}`);
+  console.log(`[postprocess] Processing image file ${key}`);
 
   try {
 
     // Get the new image, determine the aspect ratio, and give it to Sharp.
 
     const size       = /profile/.test(key) ? [600,600] : [1200,502];
-    const response   = await S3.getObject({ Bucket: S3_BUCKET_IN, Key: key }).promise();
-    const sharpified = await sharp(response.Body)
+    const { Body }   = await S3.getObject({ Bucket: process.env.S3_BUCKET_IN, Key: key }).promise();
+    const sharpified = await sharp(Body)
                             .resize(size[0], size[1])
                             .crop(sharp.strategy.entropy)
                             .sharpen()
@@ -64,17 +70,17 @@ async function processImageFile(key, callback) {
 
     // Move the sharpified image to the "out" bucket and delete the old image file.
 
-    console.log(`[S3:${S3_BUCKET_OUT}] PUT ${key}`);
+    console.log(`[S3:OUT] PUT ${key}`);
     await S3.putObject({
-      Bucket: S3_BUCKET_OUT,
+      Bucket: process.env.S3_BUCKET_OUT,
       Body: sharpified,
       Key: key,
       ACL: "public-read"
     }).promise();
 
-    console.log(`[S3:${S3_BUCKET_IN}] DELETE ${key}`);
+    console.log(`[S3:IN] DELETE ${key}`);
     await S3.deleteObject({
-      Bucket: S3_BUCKET_IN,
+      Bucket: process.env.S3_BUCKET_IN,
       Key: key
     }).promise();
 
@@ -88,18 +94,18 @@ async function processImageFile(key, callback) {
 
 async function processPayloadFile(key, callback) {
 
-  console.log(`[S3] Processing payload file ${key}`);
+  console.log(`[postprocess] Processing payload file ${key}`);
 
   try {
 
-    // Get the channel's payload file folder.
+    // Get the payload file folder.
 
     const prefix = key.replace(/\/[^\/]+$/i, "");
-    const acl    = /releases/.test(prefix) ? "private" : "public-read";
+    const acl    = /(releases|proposals)/.test(prefix) ? "private" : "public-read";
 
-    await clearObjects(S3_BUCKET_OUT, prefix);
-    await putNewPayloadFile(key, acl);
-    await clearObjects(S3_BUCKET_IN, prefix);
+    await clearObjects(process.env.S3_BUCKET_OUT, prefix);
+    await transferPayload(key, acl);
+    await clearObjects(process.env.S3_BUCKET_IN, prefix);
 
     callback(null, { statusCode: 200 });
 
@@ -110,13 +116,14 @@ async function processPayloadFile(key, callback) {
 }
 
 
-async function putNewPayloadFile(Key, ACL) {
+async function transferPayload(Key, ACL) {
 
   // Move the new payload file into place.
 
-  const { Body } = await S3.getObject({ Bucket: S3_BUCKET_IN, Key }).promise();
-  console.log(`[S3:${S3_BUCKET_OUT}] PUT ${Key}`);
-  return S3.putObject({ Bucket: S3_BUCKET_OUT, Body, Key, ACL }).promise();
+  const { Body } = await S3.getObject({ Bucket: process.env.S3_BUCKET_IN, Key }).promise();
+
+  console.log(`[S3:OUT] PUT ${Key}`);
+  return S3.putObject({ Bucket: process.env.S3_BUCKET_OUT, Body, Key, ACL }).promise();
 }
 
 

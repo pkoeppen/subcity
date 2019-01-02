@@ -33,10 +33,10 @@ module.exports = {
 
     // ChannelQuery
     
-    getChannelById:            ChannelQuery.getChannelById,
-    getChannelsByRange:        ChannelQuery.getChannelsByRange,
-    getChannelBySlug:          ChannelQuery.getChannelBySlug,
-    getChannelPaymentSettings: ChannelQuery.getChannelPaymentSettings,
+    getChannelById:     ChannelQuery.getChannelById,
+    getChannelsByRange: ChannelQuery.getChannelsByRange,
+    getChannelBySlug:   ChannelQuery.getChannelBySlug,
+    getPayoutSettings:  ChannelQuery.getPayoutSettings,
 
     // SubscriberQuery
 
@@ -61,31 +61,33 @@ module.exports = {
 
     // ChannelMutation
 
-    initializeChannel:            ChannelMutation.initializeChannel,
-    updateChannel:                ChannelMutation.updateChannel,
-    updateChannelPaymentSettings: ChannelMutation.updateChannelPaymentSettings,
+    initializeChannel:    ChannelMutation.initializeChannel,
+    deleteChannel:        ChannelMutation.deleteChannel,
+    updateChannel:        ChannelMutation.updateChannel,
+    updatePayoutSettings: ChannelMutation.updatePayoutSettings,
 
     // SubscriberMutation
 
     initializeSubscriber: SubscriberMutation.initializeSubscriber,
-    // updateSubscriber
-    // updateSubscriberPaymentSettings
-    modifySubscription: SubscriberMutation.modifySubscription,
+    createSubscription:   SubscriberMutation.createSubscription,
+    deleteSubscription:   SubscriberMutation.deleteSubscription,
+    updateSubscriber:     SubscriberMutation.updateSubscriber,
 
     // ReleaseMutation
 
     createRelease: ReleaseMutation.createRelease,
+    deleteRelease: ReleaseMutation.deleteRelease,
     updateRelease: ReleaseMutation.updateRelease,
 
     // SyndicateMutation
 
-    createSyndicate:          SyndicateMutation.createSyndicate,
-    leaveSyndicate:           SyndicateMutation.leaveSyndicate,
-    respondToSyndicateInvite: SyndicateMutation.respondToSyndicateInvite,
+    answerInvitation: ChannelMutation.answerInvitation, // TODO: Move this to /syndicate/mutation.js
+    createSyndicate:  SyndicateMutation.createSyndicate,
+    leaveSyndicate:   SyndicateMutation.leaveSyndicate,
 
     // ProposalMutation
 
-    createProposal:     ProposalMutation.createProposal,
-    submitProposalVote: ProposalMutation.submitProposalVote
+    createProposal: ProposalMutation.createProposal,
+    castVote:       ProposalMutation.castVote
   }
 };

@@ -44,6 +44,9 @@ const dispatch = {
 
   "invoice.payment_succeeded": function (body, callback) {
 
+    // TODO: IGNORE IF AMOUNT IS ZERO
+    // Stripe creates invoices for $0.00 even with 100% coupon.
+
     // Handles transfers to Stripe Connect accounts, either as a single
     // channel or multiple channels as members of a syndicate.
 

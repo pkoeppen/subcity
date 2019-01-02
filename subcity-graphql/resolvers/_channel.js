@@ -9,7 +9,7 @@ const {
   sanitize,
   DynamoDB,
   S3,
-  buildDynamoDBQuery,
+  buildQuery,
   getIDHash,
   parseMarkdown,
   curateSets,
@@ -17,9 +17,10 @@ const {
     createStripeAccountObject,
     createStripeAccount,
     createStripePlan,
-    createStripeCustomer
+    createStripeCustomer,
+    handleSubscriptionRateChange
   }
-} = require("../../shared");
+} = require("../shared");
 
 const {
   chunk,
@@ -36,7 +37,7 @@ const {
 module.exports = {
   assertTokenExists,
   initializeChannel,
-  // getChannelById,
+  getChannelById,
   // getChannelBySlug,
   // getChannelsByIdArray,
   // getApprovalsByIdArray,
@@ -44,7 +45,8 @@ module.exports = {
   // getChannelsByRange,
   // getChannelPaymentSettings,
   // createChannel,
-  // updateChannel,
+  updateChannel,
+  writeChannelUpdates,
   // updateChannelPaymentSettings
 };
 
@@ -189,10 +191,13 @@ async function initializeChannel (root, args, ctx, ast) {
       plan_id
     };
     
-    await Promise.all([createChannel(seed), deleteSignupToken(data.token_id)]);
+    await Promise.all([
+      createChannel(seed),
+      deleteSignupToken(data.token_id)
+    ]);
 
   } catch(error) {
-    console.error("fucking error 2:",error)
+
     rollback(["stripe", "auth0"], {
       user_id: stripe_id,
       product_id: `prod_channel_${channel_id}`,
@@ -291,11 +296,9 @@ function rollback(providers, { user_id, product_id, plan_id, access_token }) {
 }
 
 
-function getChannelById (root, args, ctx, ast) {
+function getChannelById (channel_id) {
 
-  // Always private, called from the channel settings page.
-
-  const channel_id = args.channel_id || root.creator;
+  // Get channel by ID.
 
   if (!channel_id) { return null; }
   
@@ -307,24 +310,12 @@ function getChannelById (root, args, ctx, ast) {
   return DynamoDB.get(params).promise()
   .then(({ Item: channel }) => {
 
-    if (channel) {
-
-      if (ctx.private) {
-        channel                = curateSets(channel);
-        channel.earnings_month = channel.subscribers.length * channel.rate;
-        channel.description    = parseMarkdown(channel.description, true);
-        channel.overview       = parseMarkdown(channel.overview, true);
-      }
-      return channel;
-
+    if (!channel) {
+      return new Error("! Channel not found.");
     } else {
-      throw new Error();
+      return channel;
     }
 
-  })
-  .catch(error => {
-    console.error(error);
-    return new Error("Error fetching channel.");
   });
 };
 
@@ -536,81 +527,138 @@ const getChannelPaymentSettings = (root, args, ctx, ast) => {
 ///////////////////////////////////////////////////
 
 
-const createChannel = ({ channel_id, currency, plan_id }) => {
+function createChannel (seed) {
 
-  // This method is only accessible through ChannelSignupMutation.
+  // Create a new channel.
 
-  const channel = {
-    channel_id,
-    currency,
-    plan_id,
-    time_created:   Date.now(),
-    time_updated:   null,
-    payload_url:    null,
-    slug:           null,
-    title:          null,
+  const channel = Object.assign({
     description:    null,
     overview:       null,
-    unlisted:       false,
+    payload_url:    null,
+    published:      false,
     rate:           1999,
-    earnings_total: 0
-  };
+    slug:           null,
+    time_created:   Date.now(),
+    time_updated:   null,
+    title:          null,
+    unlisted:       false
+  }, seed);
 
-  console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Creating new channel ${channel_id}`);
+  console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Creating new channel ${seed.channel_id}`);
   return DynamoDB.put({
     TableName: process.env.DYNAMODB_TABLE_CHANNELS,
     Item: channel
   }).promise()
-  .then(() => ({ channel_id }))
   .catch(error => {
     console.error(error);
-    throw new Error("Error creating channel.");
+    return new Error("Error creating channel.");
   });
 };
 
 
-const updateChannel = async (root, args, ctx, ast) => {
+function assertSlugAvailable (slug) {
 
-  const data = sanitize(args.data);
-  data.time_updated = Date.now();
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: { slug }
+  };
+  console.log("slug\n\n\n\n\n",slug)
+  return DynamoDB.get(params).promise()
+  .then(({ Item: slug }) => !slug)
+  .catch(error => {
+    console.error(`[assertSlugAvailable] Error: ${error}`);
+    return new Error("! Error asserting slug availability.");
+  });;
+}
 
-  if (data.rate) {
 
-    // Update subscription rate.
+function createSlug (slug_item) {
 
-    try {
-      const channel     = await getChannelById(null, data);
-      const new_plan_id = await stripeUtilities.handleSubscriptionRateChange("channel", channel, Math.floor(data.rate));
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Item: slug
+  };
 
-      // Set "data.plan_id" so it gets written into the DynamoDB UpdateExpression.
+  console.log(`${"[DynamoDB:SLUGS] ".padEnd(30, ".")} creating slug ${slug}`);
+  return DynamoDB.put(params).promise()
+  .catch(error => {
+    console.error(`[createSlug] Error: ${error}`);
+    return new Error("! Error creating slug.");
+  });
+}
 
-      data.plan_id = new_plan_id;
-    } catch(error) {
-      console.error(error);
-      throw new Error("Error updating subscription rate.");
-    } 
+
+function deleteSlug (slug) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: {
+      slug
+    }
+  };
+
+  console.log(`${"[DynamoDB:SLUGS] ".padEnd(30, ".")} Deleting slug ${slug}`);
+  return DynamoDB.delete(params).promise()
+  .catch(error => {
+    console.error(`[deleteSlug] Error: ${error}`);
+    return new Error("! Error deleting slug.");
+  });
+}
+
+
+async function handleSlugAssignment ({ channel_id, syndicate_id }, slug) {
+
+  if (await assertSlugAvailable(slug)) {
+
+    const channel   = await getChannelById(channel_id);
+    const syndicate = await getSyndicateById(syndicate_id);
+    const old_slug  = (channel || syndicate).slug;
+    const slug_item = {
+      slug,
+      ...(channel_id && { channel_id }),
+      ...(syndicate_id && { syndicate_id })
+    };
+
+    return Promise.all([
+      createSlug(slug_item),
+      deleteSlug(old_slug)
+    ]);
+
+  } else {
+    return new Error("! Slug unavailable.");
   }
+}
 
-  // Build the query string for DynamoDB.
 
-  const { expressionAttributeValues, updateExpression } = buildDynamoDBQuery(data);
+function writeChannelUpdates (channel_id, updates) {
 
+  // Writes channel updates to DynamoDB.
+
+  const { expressionAttributeValues, updateExpression } = buildQuery(updates);
+
+  console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Updating channel ${channel_id}`);
   return DynamoDB.update({
     TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id: data.channel_id },
+    Key: { channel_id },
     UpdateExpression: `SET ${updateExpression}`,
-    ExpressionAttributeValues: expressionAttributeValues,
+    ExpressionAttributeValues: expressionAttributeValues
+  }).promise();
+}
 
-    // This expression avoids accidental creation.
 
-    ConditionExpression: "attribute_exists(channel_id)"
-  })
-  .promise()
-  .then(() => ({ channel_id: data.channel_id }))
-  .catch(error => {
-    console.log(error)
-    throw new Error("Error updating channel.");
-  });
+async function updateChannel (channel_id, data) {
+
+  const data = sanitize(data);
+  data.time_updated = Date.now();
+
+  const tasks = [
+    writeChannelUpdates(channel_id, data),
+    ...(!!data.slug && handleSlugAssignment({ channel_id }, data.slug)),
+    ...(!!data.rate && handleSubscriptionRateChange({ channel_id }, Math.floor(data.rate)))
+  ];
+
+  return Promise.all(tasks)
+  .then(() => true);
 };
 
 

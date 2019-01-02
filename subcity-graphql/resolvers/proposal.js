@@ -213,7 +213,7 @@ const submitProposalVote = async (root, args, ctx, ast) => {
 
   // Add the vote to the proposal.
 
-  var UpdateExpression = `SET #votes.#channel_id :vote_object`;
+  var UpdateExpression = `SET #votes.#channel_id = :vote_object`;
 
   var ExpressionAttributeNames = {
     "#votes": "votes",

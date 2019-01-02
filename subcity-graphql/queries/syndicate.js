@@ -14,15 +14,12 @@ const {
 
 const {
 
-  syndicate: {
     getSyndicateById,
     getSyndicateBySlug,
     getSyndicatesByRange,
-    createSyndicate,
-    updateSyndicate,
-    leaveSyndicate,
-    respondToSyndicateInvite  
-  }
+
+  createSyndicate,
+  leaveSyndicate
   
 } = require("../resolvers");
 
@@ -81,58 +78,43 @@ const SyndicateMutation = {
         type: new GraphQLNonNull(SyndicateInputType)
       }
     },
-    resolve: createSyndicate
-  },
+    resolve: (root, args, ctx, ast) => {
 
-  updateSyndicate: {
-    type: new GraphQLNonNull(SyndicateType),
-    args: {
-      data: {
-        name: "data",
-        type: new GraphQLNonNull(SyndicateInputType)
-      }
-    },
-    resolve: updateSyndicate
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        data
+      } = args;
+
+      return createSyndicate(channel_id, data);
+    }
   },
 
   leaveSyndicate: {
-    type: new GraphQLNonNull(GraphQLID),
+    type: new GraphQLNonNull(GraphQLBoolean),
     args: {
-      data: {
-        name: "data",
-        type: new GraphQLNonNull(new GraphQLInputObjectType({
-          name: "LeaveSyndicateInput",
-          fields: () => ({
-            channel_id:   { type: new GraphQLNonNull(GraphQLID) },
-            syndicate_id: { type: new GraphQLNonNull(GraphQLID) }
-          })
-        }))
+      syndicate_id: {
+        name: "syndicate_id",
+        type: new GraphQLNonNull(GraphQLID)
       }
     },
-    resolve: leaveSyndicate
-  },
+    resolve: (root, args, ctx, ast) => {
 
-  respondToSyndicateInvite: {
-    type: new GraphQLNonNull(SyndicateType),
-    args: {
-      data: {
-        name: "data",
-        type: new GraphQLNonNull(new GraphQLInputObjectType({
-          name: "RespondToSyndicateInviteInput",
-          fields: () => ({
-            channel_id:   { type: new GraphQLNonNull(GraphQLID) },
-            syndicate_id: { type: new GraphQLNonNull(GraphQLID) },
-            approved:     { type: new GraphQLNonNull(GraphQLBoolean) }
-          })
-        }))
-      }
-    },
-    resolve: respondToSyndicateInvite
+      const {
+        channel_id
+      } = ctx;
+
+      const {
+        syndicate_id
+      } = args;
+
+      return leaveSyndicate(channel_id, syndicate_id);
+    }
   }
-
 };
 
-////////////////////////////////////////////////////
 
 module.exports = {
   SyndicateQuery,

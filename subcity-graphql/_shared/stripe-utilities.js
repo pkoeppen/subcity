@@ -10,13 +10,13 @@ module.exports = {
   createStripePlan,
   createStripeCustomer,
   parseDate,
-  parseLast4,
   getDefaultCurrency,
   handleSubscriptionRateChange,
   handleSubscriptionTransfer,
   getPlansByProductId,
   getSubscriptionsFromPlans,
   updateSubscriptionsToNewPlan,
+  updateStripeAccount,
   deletePlans,
   deleteProduct,
   deleteSubscriptions,
@@ -89,19 +89,10 @@ function createStripeCustomer(stripeCustomerObject) {
 function parseDate(date) {
   const dateObject = new Date(date);
   if (isNaN(dateObject.getTime())) {
-    throw new Error("Invalid date of birth.");
+    throw new Error("! Invalid date of birth.");
   } else {
     const [year, month, day] = dateObject.toLocaleDateString().split("-");
     return { year, month, day };
-  }
-}
-
-
-function parseLast4({ personal_id_number }) {
-  if (personal_id_number && /^[0-9]{9}$/.test(personal_id_number)) {
-    return personal_id_number.slice(-4);
-  } else {
-    throw new Error("Invalid ID number.");
   }
 }
 
@@ -245,6 +236,11 @@ function getSubscriptionsFromPlans(plans) {
     }
     return promise.then(acc => acc.concat(buffer));
   }, Promise.resolve([]));
+}
+
+
+function updateStripeAccount(account_id, account_object) {
+  return stripe.accounts.update(account_id, account_object);
 }
 
 
