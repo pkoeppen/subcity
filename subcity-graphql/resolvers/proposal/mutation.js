@@ -16,7 +16,8 @@ const {
   moveKey,
   queryAll,
   sanitize,
-  transferSubscriptions
+  scanAll,
+  transferSubscription
 } = require("../../shared");
 
 
@@ -414,14 +415,21 @@ async function deleteMembershipsBySyndicateID (syndicate_id) {
 async function deleteProposalsBySyndicateID (syndicate_id) {
 
   const params = {
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-    KeyConditionExpression: "syndicate_id = :syndicate_id",
-    ExpressionAttributeValues: {
-      ":syndicate_id": syndicate_id
-    }
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS
   };
 
-  const proposals = await queryAll(params);
+  const proposals = (await scanAll(params)).filter(proposal => {
+
+    const {
+      master_id,
+      slave_id,
+      syndicate_id: _syndicate_id
+    } = proposal;
+
+    return (master_id === syndicate_id ||
+            slave_id === syndicate_id ||
+            _syndicate_id === syndicate_id);
+  });
 
   console.log(`[DynamoDB:PROPOSALS] Deleting all proposals for syndicate ${syndicate_id}`);
   const chunked = chunk(proposals, 25).map(chunk => {
@@ -561,6 +569,8 @@ function deleteSyndicateBySyndicateID (syndicate_id) {
 
 function dissolveSyndicate (syndicate_id) {
 
+  // TODO: Delete all proposals in OTHER syndicates by slave_id/master_id.
+
   const tasks = [
     clearS3ByPrefix(`syndicates/${syndicate_id}`),
     deleteInvitationsBySyndicateID(syndicate_id),
@@ -569,10 +579,11 @@ function dissolveSyndicate (syndicate_id) {
     deleteMessagesBySyndicateID(syndicate_id),
     deleteProposalsBySyndicateID(syndicate_id),
     deleteSlugsBySyndicateID(syndicate_id),
-    deleteSubscriptionsBySyndicateID(syndicate_id)
+    deleteSubscriptionsBySyndicateID(syndicate_id),
+    purgeByProductID(`prod_syndicate_${syndicate_id}`)
   ];
 
-  return Promise.all([tasks]);
+  return Promise.all(tasks);
 }
 
 
@@ -626,10 +637,7 @@ function handleApproval (proposal) {
       //return addChannelToSyndicate(proposal);
   
     case "dissolve":
-      return Promise.all([
-        dissolveSyndicate(proposal.syndicate_id),
-        purgeByProductID(`prod_syndicate_${proposal.syndicate_id}`)
-      ]);
+      return dissolveSyndicate(proposal.syndicate_id);
 
     default:
       throw new Error("! Unsupported proposal type.");
@@ -779,7 +787,7 @@ function identicalProposalExists (syndicate_id, data) {
 }
 
 
-function mergeIntoMasterSyndicate (proposal) {
+async function mergeIntoMasterSyndicate (proposal) {
 
   const {
     syndicate_id: slave_id
@@ -789,59 +797,64 @@ function mergeIntoMasterSyndicate (proposal) {
     master_id
   } = proposal;
 
-  // 0 - Transfer all Stripe subscriptions to master syndicate plan.
-
-  const _0 = DynamoDB.get({
+  const {
+    Item: {
+      plan_id
+    }
+  } = await DynamoDB.get({
     TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
     Key: { syndicate_id: master_id }
-  }).promise()
+  }).promise();
 
-  .then(({ Item: { plan_id: new_plan_id }}) => {
+  // 0 - Convert all slave syndicate subscriptions to master syndicate.
 
-    const product_id = `prod_syndicate_${slave_id}`;
-
-    return transferSubscriptions(product_id, new_plan_id)
-    .then(({ plans }) => deletePlans(plans))
-    .then(() => deleteProduct(product_id));
-  });
-
-  // 1 - Convert all slave syndicate subscriptions to master syndicate.
-
-  const _1 = queryAll({
+  const _0 = queryAll({
     TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
     IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
     KeyConditionExpression: "syndicate_id = :syndicate_id",
     ExpressionAttributeValues: { ":syndicate_id": slave_id }
   })
 
-  .then(subscriptions => {
+  .then(subs_slave => {
 
-    return Promise.all(subscriptions.map(subscription => {
+    return Promise.all(subs_slave.map(async subscription => {
 
       const {
         subscriber_id,
         subscription_id
       } = subscription;
 
-      console.log(`[DynamoDB:SUBSCRIPTIONS] Converting subscription ${subscriber_id}:${subscription_id} from slave ${slave_id} to master ${master_id}`);
-      return DynamoDB.update({
+      // Check if subscriber is already subscribed to master syndicate.
+
+      const {
+        Items: subs_master
+      } = await DynamoDB.query({
         TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
-        Key: {
-          subscriber_id,
-          subscription_id
-        },
-        UpdateExpression: "SET syndicate_id = :syndicate_id",
+        IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
+        KeyConditionExpression: "subscriber_id = :subscriber_id AND syndicate_id = :syndicate_id",
         ExpressionAttributeValues: {
+          ":subscriber_id": subscriber_id,
           ":syndicate_id": master_id
         }
       }).promise();
 
+      if (subs_master.length) {
+
+        // If so, skip conversion. purgeByProductID() will delete slave subscriptions.
+
+        return Promise.resolve();
+      } else {
+
+        // Else, transfer subscriptions to master syndicate.
+
+        return convertSubscription(subscriber_id, subscription_id, master_id, plan_id).catch(e => console.log("fuck\n\n\n\n\n",e));
+      }
     }));
   });
 
-  // 2 - Create new memberships for master syndicate.
+  // 1 - Create new memberships for master syndicate.
 
-  const _2 = queryAll({
+  const _1 = queryAll({
     TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
     IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
     KeyConditionExpression: "syndicate_id = :syndicate_id",
@@ -866,13 +879,31 @@ function mergeIntoMasterSyndicate (proposal) {
     }));
   });
 
-  // 3 - Dissolve the slave syndicate.
-
-  const _3 = dissolveSyndicate(slave_id);
-
   // Execute.
 
-  return Promise.all([_0,_1,_2,_3]);
+  return Promise.all([_0,_1])
+  .then(() => dissolveSyndicate(slave_id));
+}
+
+
+function convertSubscription (subscriber_id, subscription_id, master_id, plan_id) {
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Converting subscription ${subscriber_id}:${subscription_id} to master syndicate ${master_id}`);
+  const _0 = DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    Key: {
+      subscriber_id,
+      subscription_id
+    },
+    UpdateExpression: "SET syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": master_id
+    }
+  }).promise();
+
+  const _1 = transferSubscription(`sub_${subscription_id}`, plan_id);
+
+  return Promise.all([_0,_1]);
 }
 
 

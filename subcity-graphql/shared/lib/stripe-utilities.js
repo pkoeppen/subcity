@@ -3,9 +3,13 @@ const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
 const sortBy = require("lodash/sortBy");
 const without = require("lodash/without");
 
-const {
-  DynamoDB
-} = require("./aws");
+const AWS = require("aws-sdk");
+AWS.config.update({
+  region: "us-east-1"
+});
+
+
+const DynamoDB = new AWS.DynamoDB.DocumentClient();
 
 
 module.exports = {
@@ -13,21 +17,27 @@ module.exports = {
   createStripeAccount,
   createStripePlan,
   createStripeCustomer,
+  createStripeSource,
   createStripeSubscription,
   deactivateSubscriptionsByProductID,
   deleteStripeAccount,
   deleteStripeCustomer,
   deleteStripePlan,
   deleteStripeProduct,
+  deleteStripeSource,
   deleteStripeSubscription,
-  parseDate,
-  parseLast4,
   getDefaultCurrency,
-  reactivateSubscriptionsByProductID,
-  transferSubscriptions,
   getPlansByProductID,
+  getStripeAccountSettings,
+  getStripeSources,
   getSubscriptionsByProductID,
   getSubscriptionsFromPlans,
+  parseDate,
+  parseLast4,
+  reactivateSubscriptionsByProductID,
+  setDefaultStripeSource,
+  transferSubscription,
+  transferSubscriptionsByProductID,
   updateSubscriptionsToNewPlan,
   updateStripeAccount,
   deletePlans,
@@ -101,9 +111,9 @@ function createStripeCharge (customer_id, amount, description=null) {
 function createStripePlan (plan) {
 
   if (plan.id && plan.product.id) {
-    console.log(`[Stripe] Creating new plan ${plan.id} and product ${plan.product.id}`);
-  } else if (plan.product.id) {
-    console.log(`[Stripe] Creating new plan for product ${plan.product.id}`);
+    console.log(`[Stripe] Creating new ${plan.id} and ${plan.product.id}`);
+  } else if (plan.product) {
+    console.log(`[Stripe] Creating new plan for ${plan.product.id || plan.product}`);
   }
 
   return stripe.plans.create(plan);
@@ -113,6 +123,12 @@ function createStripePlan (plan) {
 function createStripeCustomer (stripeCustomerObject) {
   console.log(`[Stripe] Creating new customer`);
   return stripe.customers.create(stripeCustomerObject);
+}
+
+
+function createStripeSource (customer_id, token) {
+  console.log(`[Stripe] Creating new source for ${customer_id}`);
+  return stripe.customers.createSource(customer_id, { source: token });
 }
 
 
@@ -163,6 +179,62 @@ function deleteStripeProduct (product_id) {
 }
 
 
+function deleteStripeSource (customer_id, source_id) {
+  console.log(`[Stripe] Deleting ${source_id}`);
+  return stripe.customers.deleteSource(customer_id, source_id);
+}
+
+
+function getStripeAccountSettings (account_id) {
+
+  return stripe.accounts.retrieve(account_id)
+  .then(account => {
+
+    // Add leading zeroes to date.
+
+    var { year, month, day } = account.legal_entity.dob;
+    month = ("0" + month).slice(-2);
+    day = ("0" + day).slice(-2);
+
+    // Mangle the data into a form GraphQL will accept.
+
+    const settings = {
+
+      first_name:           account.legal_entity.first_name,
+      last_name:            account.legal_entity.last_name,
+      country:              account.country,
+      city:                 account.legal_entity.address.city,
+      line1:                account.legal_entity.address.line1,
+      postal_code:          account.legal_entity.address.postal_code,
+      state:                account.legal_entity.address.state,
+      dob:                  `${year}-${month}-${day}`,
+      bank_name:            account.external_accounts.data[0].bank_name,
+      routing_number:       account.external_accounts.data[0].routing_number,
+      account_number_last4: account.external_accounts.data[0].last4,
+      payout_interval:      account.payout_schedule.interval,
+      payout_anchor:        account.payout_schedule.monthly_anchor || account.payout_schedule.weekly_anchor || null
+
+    };
+
+    return settings;
+  });
+}
+
+
+function getStripeSources (customer_id) {
+  return stripe.customers.retrieve(customer_id)
+  .then(({ default_source, sources: { data }}) => {
+    return data.map(({ id, ...source }) => {
+      if (id === default_source) {
+        source.default = true;
+      }
+      source.source_id = id;
+      return source;
+    })
+  });
+}
+
+
 function deleteStripeSubscription (subscription_id) {
   console.log(`[Stripe] Deleting ${subscription_id}`);
   return stripe.subscriptions.del(subscription_id);
@@ -202,66 +274,43 @@ function parseLast4({ personal_id_number }) {
 }
 
 
-async function transferSubscriptions (product_id, new_plan_id) {
+async function transferSubscription (subscription_id, plan_id) {
+
+  const {
+    items: {
+      data: subscription_items
+    }
+  } = await stripe.subscriptions.retrieve(subscription_id);
+
+  const items = subscription_items.map(item => {
+    if (item.plan === "plan_extra") {
+      return item;
+    } else {
+      return {
+        id: item.id,
+        plan: plan_id
+      };
+    }
+  });
+
+  console.log(`[Stripe] Updating subscription ${subscription_id} to ${plan_id}`);
+  return stripe.subscriptions.update(subscription_id, { items });
+}
+
+
+async function transferSubscriptionsByProductID (product_id, plan_id) {
 
   // Get all (old) plans associated with the Stipe product...
 
-  const plans = without((await getPlansByProductID(product_id)).map(({ id }) => id), new_plan_id);
+  const plans = without((await getPlansByProductID(product_id)).map(({ id }) => id), plan_id);
 
   // ...then get all subscriptions associated with those plans.
 
   const subscriptions = await getSubscriptionsFromPlans(plans);
 
-  return updateSubscriptionsToNewPlan(subscriptions, new_plan_id)
+  return updateSubscriptionsToNewPlan(subscriptions, plan_id)
   .then(() => ({ subscriptions, plans }));
 }
-
-
-function getChannelById (channel_id) {
-
-  // Get channel by ID.
-
-  if (!channel_id) { return null; }
-  
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id }
-  };
-
-  return DynamoDB.get(params).promise()
-  .then(({ Item: channel }) => {
-
-    if (!channel) {
-      throw new Error("! Channel not found.");
-    } else {
-      return channel;
-    }
-
-  });
-};
-
-function getSyndicateById (syndicate_id) {
-
-  // Get syndicate by ID.
-
-  if (!syndicate_id) { return null; }
-  
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-    Key: { syndicate_id }
-  };
-
-  return DynamoDB.get(params).promise()
-  .then(({ Item: syndicate }) => {
-
-    if (!syndicate) {
-      throw new Error("! Syndicate not found.");
-    } else {
-      return syndicate;
-    }
-
-  });
-};
 
 
 async function getPlansByProductID (product_id) {
@@ -296,7 +345,7 @@ async function getPlansByProductID (product_id) {
 }
 
 
-function getSubscriptionsFromPlans(plans) {
+function getSubscriptionsFromPlans (plans) {
 
   return plans.reduce(async (promise, plan_id) => {
 
@@ -311,7 +360,7 @@ function getSubscriptionsFromPlans(plans) {
 
       var subsToConcat;
 
-      console.log(`[Stripe] Fetching subscriptions to ${plan_id} (page: ${index})`);
+      console.log(`[Stripe] Fetching subscriptions to ${plan_id} (${index})`);
       ({ has_more, data: subsToConcat } = await stripe.subscriptions.list({
         plan: plan_id,
         limit: 100,
@@ -421,25 +470,7 @@ async function purgeByProductID (product_id) {
 }
 
 
-function writeSyndicateTiersUpdate (syndicate_id, tiers, plan_id) {
-
-  console.log(`[DynamoDB:SYNDICATES] Updating tiers and plan_id for syndicate ${syndicate_id}`);
-  return DynamoDB.update({
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-    Key: { syndicate_id },
-    UpdateExpression: `SET #tiers.#_1.#rate = :tier_1_rate, #tiers.#_2.#rate = :tier_2_rate, #tiers.#_3.#rate = :tier_3_rate, plan_id = :plan_id`,
-    ExpressionAttributeNames: {
-      "#tiers": "tiers",
-      "#_1": "_1",
-      "#_2": "_2",
-      "#_3": "_3",
-      "#rate": "rate"
-    },
-    ExpressionAttributeValues: {
-      ":tier_1_rate": tiers._1.rate,
-      ":tier_2_rate": tiers._2.rate,
-      ":tier_3_rate": tiers._3.rate,
-      ":plan_id": plan_id
-    }
-  }).promise();
+function setDefaultStripeSource (customer_id, source_id) {
+  console.log(`[Stripe] Setting source ${source_id} as default for ${customer_id}`);
+  return stripe.customers.update(customer_id, { default_source: source_id });
 }

@@ -29,6 +29,10 @@ global.channels = {
 global.subscribers = {
   _1: {
     object: {},
+    sources: {
+      _1: {},
+      _2: {}
+    },
     subscriptions: {
       _1: {},
       _2: {}
@@ -36,6 +40,10 @@ global.subscribers = {
   },
   _2: {
     object: {},
+    sources: {
+      _1: {},
+      _2: {}
+    },
     subscriptions: {
       _1: {},
       _2: {}
@@ -43,6 +51,10 @@ global.subscribers = {
   },
   _3: {
     object: {},
+    sources: {
+      _1: {},
+      _2: {}
+    },
     subscriptions: {
       _1: {},
       _2: {}
@@ -76,27 +88,29 @@ before(async function() {
 
   // Clear everything.
 
-  await clear.all();
+  await clear.all()
+  .then(async () => {
 
-  // Create "extra" Stripe plan and product.
+    // Create "extra" Stripe plan and product.
 
-  await stripe.plans.create({
-    amount: 1,
-    currency: "usd",
-    id: "plan_extra",
-    interval: "month",
-    product: {
-      id:   "prod_extra",
-      name: "prod_extra"
-    }
-  });
+    await stripe.plans.create({
+      amount: 1,
+      currency: "usd",
+      id: "plan_extra",
+      interval: "month",
+      product: {
+        id:   "prod_extra",
+        name: "prod_extra"
+      }
+    });
 
-  // Create free Stripe coupon.
+    // Create free Stripe coupon.
 
-  await stripe.coupons.create({
-    percent_off: 100,
-    duration: "forever",
-    id: "deactivated"
+    await stripe.coupons.create({
+      percent_off: 100,
+      duration: "forever",
+      id: "deactivated"
+    });
   });
 
   // Seed signup tokens.
@@ -123,6 +137,7 @@ before(async function() {
   await DynamoDB.batchWrite(params).promise();
 });
 
+
 require("./integration/channel/creation.test");
 require("./integration/subscriber/creation.test");
 require("./integration/syndicate/creation.test");
@@ -131,19 +146,47 @@ require("./integration/release/creation.test");
 require("./integration/channel/operation.test");
 require("./integration/subscriber/operation.test");
 require("./integration/syndicate/operation.test");
-//require("./integration/release/creationPaid.test");
+require("./integration/release/operation.test");
 
-return;
-require("./channel.test");
-require("./release.test");
-require("./syndicate.test");
-require("./subscriber.test");
+require("./integration/complexity.test");
+
+require("./integration/subscriber/deletion.test");
+require("./integration/release/deletion.test");
+require("./integration/channel/deletion.test");
+require("./integration/syndicate/deletion.test");
+
+//require("./integration/transfers.test");
 
 
-// signup channels
-// update channels
-// create releases
-// update releases
-// signup subscribers
-// create syndicates
-// update syndicates
+async function load () {
+
+  const {
+    Items: [
+      channel
+    ]
+  } = await DynamoDB.scan({
+    TableName: process.env.DYNAMODB_TABLE_CHANNELS
+  }).promise();
+
+  global.channels._1.object = Object.assign({}, channel);
+
+  const {
+    Items: [
+      subscriber
+    ]
+  } = await DynamoDB.scan({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS
+  }).promise();
+
+  global.subscribers._1.object = Object.assign({}, subscriber);
+
+  const {
+    Items: [
+      syndicate
+    ]
+  } = await DynamoDB.scan({
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES
+  }).promise();
+
+  global.syndicates._1.object = Object.assign({}, syndicate);
+}

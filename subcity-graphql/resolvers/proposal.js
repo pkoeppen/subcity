@@ -1,691 +1,1016 @@
-const {
-  chunk,
-  flatten,
-  includes,
-  merge,
-  omit,
-  pick,
-  isEmpty
-} = require("lodash");
+const chunk = require("lodash/chunk");
+const includes = require("lodash/includes");
+const isEqual = require("lodash/isEqual");
+const omit = require("lodash/omit");
+const sortBy = require("lodash/sortBy");
 
 const {
-  promisify,
-  generateID,
+  buildQuery,
+  clearS3ByPrefix,
+  createStripePlan,
+  deletePlans,
+  deleteProduct,
+  deleteStripePlan,
   DynamoDB,
-  buildDynamoDBQuery,
+  purgeByProductID,
+  moveKey,
+  queryAll,
   sanitize,
-  parseMarkdown,
-  curateSets,
-  stripeUtilities
-} = require("../../shared");
-
-const {
-  getSyndicateById,
-  updateSyndicate
-} = require("./syndicate");
-
-
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
-
-
-const getProposalById = (root, args) => {
-
-  const {
-    syndicate_id,
-    proposal_id
-  } = args;
-
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-    Key: { syndicate_id, proposal_id },
-  };
-
-  return DynamoDB.get(params).promise()
-  .then(({ Item: proposal }) => {
-
-    if (proposal) {
-      proposal = checkExpired(proposal);
-      proposal = curateSets(proposal);
-      return proposal;
-
-    } else {
-      throw new Error("Proposal not found.");
-    }
-
-  });
-}
-
-
-const getProposalsByIdArray = (root, args) => {
-
-  const {
-    syndicate_id,
-    proposals
-  } = root;
-
-  if (!proposals || !proposals.length) { return []; }
-
-  const chunked = chunk(proposals, 100).map(chunk => {
-
-    const params = {
-      RequestItems: {
-        [process.env.DYNAMODB_TABLE_PROPOSALS]: {
-          Keys: chunk.map(proposal_id => ({ syndicate_id, proposal_id }))
-        }
-      }
-    };
-
-    return DynamoDB.batchGet(params).promise();
-  });
-
-  return Promise.all(chunked).then(results => {
-
-    const proposals = flatten(results.map(({ Responses }) => Responses[process.env.DYNAMODB_TABLE_PROPOSALS]));
-
-    return proposals.map(proposal => {
-
-      if (proposal.description) {
-        proposal.description = parseMarkdown(proposal.description);
-      }
-
-      proposal = checkExpired(proposal);
-      proposal = curateSets(proposal);
-      return proposal;
-    });
-
-  });
-};
-
-
-///////////////////////////////////////////////////
-//////////////////// MUTATIONS ////////////////////
-///////////////////////////////////////////////////
-
-
-const createProposal = async (root, args, ctx, ast) => {
-
-  var data = sanitize(args.data);
-
-  // Disallow simultaneous changes to syndicate data (title, slug, etc.)
-  // in conjunction with "action" proposals (invitations, mergers, dissolutions).
-
-  if (data.action) {
-    data = pick(data, [
-      "channel_id",
-      "_channel_id",
-      "syndicate_id",
-      "_syndicate_id",
-      "action"
-    ]);
-  } else {
-    data = omit(data, [
-      "_channel_id",
-      "_syndicate_id",
-      "action"
-    ]);
-  }
-
-  const { channel_id, syndicate_id } = data;
-  const syndicate = await getSyndicateById(null, { syndicate_id });
-
-  if (!syndicateHasChannel(syndicate, channel_id)) {
-
-    // If the channel is not a member of the syndicate...
-
-    throw new Error("No such member channel.");
-  }
-
-  if (identicalProposalAlreadyExists(await getProposalsByIdArray(syndicate), data)) {
-
-    // If an identical proposal has already been submitted...
-
-    throw new Error("Identical proposal already exists.");
-  }
-
-  // TODO: Add a check to limit the number of proposals any one channel can have at a time.
-
-
-  // TODO: Change this expires bullshit.
-
-  const proposal_id = generateID();
-  var created = new Date();
-  var expires = new Date();
-
-  // Set expiry to 24 hours.
-
-  expires.setDate(created.getDate() + 1);
-
-  const toMerge = {
-    proposal_id,
-    time_created: Date.now(),
-    status: "pending",
-    channel_id,
-    votes: {}
-  };
-
-  // Obtain proposal object.
-
-  const proposal = omit(merge(data, toMerge), "channel_id");
-
-  // Create the proposal in DynamoDB.
-
-  return DynamoDB.put({
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-    Item: proposal
-  }).promise().then(() => proposal);
-};
-
-
-const submitProposalVote = async (root, args, ctx, ast) => {
-
-  const { data } = args;
-
-  var a = b = c = Promise.resolve();
-
-  const {
-    channel_id,
-    syndicate_id,
-    proposal_id,
-    motion
-  } = data;
-
-  const [
-    proposal,
-    syndicate
-  ] = await Promise.all([
-    getProposalById(null, { syndicate_id, proposal_id }),
-    getSyndicateById(null, { syndicate_id })
-  ]);
-
-  if (!syndicateHasChannel(syndicate, channel_id)) {
-    throw new Error("No such member channel.");
-  }
-
-  if (channelAlreadyVoted(proposal, channel_id)) {
-    throw new Error("Vote already submitted for this proposal.");
-  }
-
-  if (proposal.status !== "pending") {
-    throw new Error("Voting has closed.");
-  }
-
-  // Add the vote to the proposal.
-
-  var UpdateExpression = `SET #votes.#channel_id = :vote_object`;
-
-  var ExpressionAttributeNames = {
-    "#votes": "votes",
-    "#channel_id": channel_id
-  };
-
-  var ExpressionAttributeValues = {
-    ":vote_object": {
-      motion,
-      time_created: Date.now()
-    }
-  };
-
-  const approved = (motion === true) && approvalTriggered(proposal, syndicate);
-  const rejected = (motion === false) && rejectionTriggered(proposal, syndicate);
-
-  if (approved) {
-
-    // The proposal has accumulated enough approvals to
-    // trigger its application to the parent syndicate.
-
-    UpdateExpression += " SET status = :status";
-    ExpressionAttributeValues[":status"] = "approved";
-
-    if (proposal.action) {
-
-      // Handle mergers, invites, and dissolutions.
-
-      switch(proposal.action) {
-
-        case "merge_request":
-          b = handleMergeRequest(syndicate, proposal);
-          break;
-
-        case "merge_approval":
-          b = handleMergeApproval(syndicate, proposal);
-          break;
-
-        case "invite":
-          b = handleInvite(syndicate, proposal);
-          break;
-
-        case "dissolve":
-          b = handleDissolve(syndicate);
-          break;
-
-        default:
-          throw new Error("Invalid action type.");
-      }
-
-    } else {
-
-      // Otherwise, apply proposal changes to syndicate as usual.
-
-      c = updateSyndicate(proposal);
-    }
-
-  } else if (rejected) {
-
-    // TODO: Trigger rejection if it is now impossible to accumulate enough votes to trigger an approval.
-
-    // The proposal has accumulated enough rejections
-    // to trigger a dormant "rejected" status.
-
-    UpdateExpression += " SET status = :status";
-    ExpressionAttributeValues[":status"] = "rejected";
-  }
-
-  // Update the proposal itself.
-
-  console.log(`[DynamoDB:PROPOSALS] Updating proposal ${syndicate_id}:${proposal_id} (${UpdateExpression})`);
-  a = DynamoDB.update({
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-    Key: { syndicate_id, proposal_id },
-    UpdateExpression,
-    ExpressionAttributeNames,
-    ExpressionAttributeValues
-  }).promise();
-
-  // Attach the new slug to the return object, if there is one and if the proposal
-  // has been approved; will be used to redirect the client to a new settings page.
-
-  const returnable = Object.assign({ proposal_id }, (proposal.slug && approved) ? { slug: proposal.slug } : null);
-
-  return Promise.all([a,b,c])
-  .then(() => returnable)
-  .catch(error => {
-    console.error(error);
-    throw new Error("Error submitting proposal vote.");
-  });
-};
-
-
-const deleteProposal = data => {
-
-  const { syndicate_id, proposal_id } = data;
-
-  return DynamoDB.delete({
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-    Key: {
-      syndicate_id,
-      proposal_id
-    }
-  }).promise().then(() => true);
-};
-
-
-////////////////////////////////////////////////////
-///////////////////// EXPORTS //////////////////////
-////////////////////////////////////////////////////
+  scanAll,
+  transferSubscription
+} = require("../shared");
 
 
 module.exports = {
-  getProposalById,
-  getProposalsByIdArray,
+  castVote,
   createProposal,
-  deleteProposal, 
-  submitProposalVote
+  dissolveSyndicate,
 };
 
 
-////////////////////////////////////////////////////
-//////////////////// FUNCTIONS /////////////////////
-////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////
+//////////////////////// FUNCTIONS /////////////////////////
+////////////////////////////////////////////////////////////
 
 
-const MAJORITY_RATIO = (2 / 3);
+async function castVote (channel_id, data) {
 
-
-function checkExpired(proposal) {
+  data = sanitize(data);
 
   const {
     syndicate_id,
-    proposal_id,
     time_created,
-    status
-  } = proposal;
+    vote
+  } = data;
 
-  // If the status is already at an end state... [approved | rejected | expired]
+  const [
+    { Item:  proposal    },
+    { Items: memberships }
+  ] = await Promise.all([
 
-  if (status !== "pending") { return proposal; }
-
-  var expires = new Date(time_created);
-  expires.setMonth(expires.getMonth + 1);
-
-  if (Date.now() > expires) {
-
-    // Proposal has expired - change status and hot-return proposal.
-
-    status = "expired";
-
-    console.log(`[DynamoDB:PROPOSALS] Updating proposal ${syndicate_id}:${proposal_id} to EXPIRED`);
-    DynamoDB.update({
+    DynamoDB.get({
       TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
       Key: {
         syndicate_id,
-        proposal_id
-      },
-      UpdateExpression: `SET status = :status`,
-      ExpressionAttributeValues: { ":status": "expired" }
-    });
+        time_created
+      }
+    }).promise(),
+
+    DynamoDB.query({
+      TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+      IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
+      KeyConditionExpression: "syndicate_id = :syndicate_id",
+      ExpressionAttributeValues: { ":syndicate_id": syndicate_id }
+    }).promise(),
+  ]);
+
+  // Checks.
+
+  if (!includes(memberships.map(({ channel_id: id }) => id), channel_id)) {
+
+    throw new Error("![400] No such member channel.");
   }
 
-  return proposal;
-}
+  if (includes(proposal.votes.map(({ channel_id: id }) => id), channel_id)) {
 
-
-function syndicateHasChannel(syndicate, channel_id) {
-  const channels = Object.keys(syndicate.channels);
-  return (channels.indexOf(channel_id) >= 0);
-}
-
-
-function channelAlreadyVoted(proposal, channel_id) {
-  return (Object.keys(proposal.votes).indexOf(channel_id) >= 0);
-}
-
-
-function identicalProposalAlreadyExists(proposals, data) {
-
-  data = omit(data, ["channel_id", "syndicate_id"]);
-  const keys = Object.keys(data);
-
-  for (let i = 0; i < proposals.length; i++) {
-    if (keys.length === keys.map(key => (proposals[i][key] === data[key])).filter(x => x).length) {
-      return true;
-    }
+    throw new Error("![400] Vote already submitted.");
   }
 
-  return false;
-}
+  if (proposal.stage !== "pending") {
 
+    throw new Error("![400] Voting has closed.");
+  }
 
-function approvalTriggered(proposal, syndicate) {
+  // Tasks.
 
-  let count    = 1;
-  let channels = Object.keys(syndicate.channels).length;
+  const tasks = [];
 
-  Object.values(proposal.votes).map(({ motion }) => {
-    if (motion === true) {
-      count++;
-    }
-  });
-
-  return (count / channels >= MAJORITY_RATIO);
-}
-
-
-function rejectionTriggered(proposal, syndicate) {
-
-  let count    = 1;
-  let channels = Object.keys(syndicate.channels).length;
-
-  Object.values(proposal.votes).map(({ motion }) => {
-    if (motion === false) {
-      count++;
-    }
-  });
-
-  return (count / channels >= MAJORITY_RATIO);
-}
-
-
-function handleMergeRequest(syndicate, proposal) {
-  
-  // Submits a proposal to the slave syndicate to merge into the master syndicate.
-  // Takes place from within the master syndicate, unlike handleMergeApproval.
-
-  const {
-    syndicate_id: master_syndicate_id
-  } = syndicate;
-
-  const {
-    _syndicate_id: slave_syndicate_id
-  } = proposal;
-
-  const data = {
-    action:        "merge_approval",
-    syndicate_id:  slave_syndicate_id,
-    _syndicate_id: master_syndicate_id
+  var UpdateExpression = "SET #votes = list_append(#votes, :vote)";
+  var ExpressionAttributeNames = {
+    "#votes": "votes"
+  };
+  var ExpressionAttributeValues = {
+    ":vote": [{
+      channel_id,
+      vote
+    }]
   };
 
-  return createProposal(null, { data });
+  const approved = (vote === true) && approvalTriggered(proposal, memberships);
+  const rejected = (vote === false) && rejectionTriggered(proposal, memberships);
+
+  if (approved) {
+    UpdateExpression += ", stage = :stage";
+    ExpressionAttributeValues[":stage"] = "approved";
+    tasks.push(handleApproval(proposal));
+  }
+
+  if (rejected) {
+    UpdateExpression += ", stage = :stage";
+    ExpressionAttributeValues[":stage"] = "rejected";
+    tasks.push(handleRejection(proposal));
+  }
+
+  const update = DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
+    Key: { syndicate_id, time_created },
+    UpdateExpression,
+    ExpressionAttributeNames,
+    ExpressionAttributeValues
+  }).promise()
+
+  tasks.push(update);
+
+  // TODO: Return redirect URL for slug changes.
+
+  return Promise.all(tasks)
+  .then(() => ({ time_created }));
 }
 
 
-async function handleMergeApproval(syndicate, proposal) {
+async function createProposal (channel_id, data, bounce=true) {
 
-  // Enacts proposal to merge the slave syndicate into the master syndicate.
-  // Triggered within the slave syndicate, unlike handleMergeRequest.
+  data = sanitize(data);
+
+  if (data.type !== "update") {
+
+    // Disallow simultaneous updates with (slave|master|join|dissolve).
+
+    delete data.updates;
+  }
+
+  // Checks.
+
+  if (data.type === "update" && !data.updates) {
+
+    throw new Error("![400] Updates object missing.");
+  }
+
+  if (data.type === "slave" && !data.slave_id) {
+
+    throw new Error("![400] Slave syndicate ID missing.");
+  }
+
+  if (data.type === "join" && !data.channel_id) {
+
+    throw new Error("![400] Channel ID missing.");
+  }
+
+  if (bounce && !await syndicateHasChannel(data.syndicate_id, channel_id)) {
+
+    throw new Error("![400] No such member channel.");
+  }
+
+  if (await identicalProposalExists(data.syndicate_id, data)) {
+
+    throw new Error("![400] Identical proposal already exists.");
+  }
+
+  // Tasks.
+
+  const tasks = [];
+
+  if ((data.updates || {}).slug) {
+
+    if (await assertSlugAvailable(data.updates.slug)) {
+      tasks.push(createReservedSlug(data.syndicate_id, data.updates.slug));
+    } else {
+      throw new Error("![400] Slug unavailable.");
+    }
+  }
+
+  const proposal = Object.assign({
+    stage: "pending",
+    time_created: Date.now(),
+    votes: []
+  }, data);
+
+  console.log(`[DynamoDB:PROPOSALS] Creating proposal ${data.syndicate_id}:${proposal.time_created}`);
+  const put = DynamoDB.put({
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
+    Item: proposal
+  }).promise();
+
+  tasks.push(put);
+
+  return Promise.all(tasks)
+  .then(() => proposal);
+};
+
+
+////////////////////////////////////////////////////////////
+///////////////////////// HELPERS //////////////////////////
+////////////////////////////////////////////////////////////
+
+
+function applyUpdatesToSyndicate (proposal) {
 
   const {
-    syndicate_id: slave_syndicate_id
-  } = syndicate;
-
-  const {
-    _syndicate_id: master_syndicate_id
+    syndicate_id,
+    time_created,
+    updates: {
+      new_profile,
+      slug,
+      tiers,
+      ...updates
+    }
   } = proposal;
 
-  // Transfer all Stripe subscriptions to the master syndicate.
+  updates.time_updated = Date.now();
 
-  const _0 = DynamoDB.get({
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+  const tasks = [];
+
+  if (slug) {
+    tasks.push(handleReservedSlugAssignment(syndicate_id, slug));
+  }
+
+  if (tiers) {
+    tasks.push(handleSyndicateTiersUpdate(syndicate_id, tiers));
+  }
+
+  if (updates.payload) {
+    let from = `syndicates/${syndicate_id}/proposals/${time_created}/payload/${updates.payload}`;
+    let to   = `syndicates/${syndicate_id}/payload/${updates.payload}`;
+    tasks.push(moveKey(from, to));
+  }
+
+  if (new_profile) {
+    let from = `syndicates/${syndicate_id}/proposals/${time_created}/profile.jpeg`;
+    let to   = `syndicates/${syndicate_id}/profile.jpeg`;
+    tasks.push(moveKey(from, to));
+  }
+
+  tasks.push(writeSyndicateUpdates(syndicate_id, updates));
+
+  return Promise.all(tasks);
+}
+
+
+function approvalTriggered (proposal, memberships) {
+
+  let votes = proposal.votes.filter(({ vote }) => vote).length + 1;
+  let total = Object.keys(memberships).length;
+
+  return (votes / total >= (2 / 3));
+}
+
+
+function assertSlugAvailable (slug) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: { slug }
+  };
+
+  return DynamoDB.get(params).promise()
+  .then(({ Item: slug }) => !slug);
+}
+
+
+function channelAlreadyVoted (syndicate_id, time_created, channel_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
     Key: {
-      syndicate_id: master_syndicate_id
+      syndicate_id,
+      time_created
     }
-  }).promise()
-  .then(({ Item: { plan_id: new_plan_id } }) => {
-    const product_id = `prod_syndicate_${slave_syndicate_id}`;
-    return stripeUtilities.handleSubscriptionTransfer(product_id, new_plan_id, true);
+  };
+
+  return DynamoDB.get(params).promise()
+  .then(({ Item: proposal }) => includes(proposal.votes.map(({ channel_id: id }) => id), channel_id));
+}
+
+
+async function convertReservedSlug (slug, syndicate_id) {
+
+  return DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: { slug },
+    UpdateExpression: `SET syndicate_id = :syndicate_id REMOVE reserved`,
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  }).promise();
+}
+
+
+function createInvitation (proposal) {
+
+  const {
+    channel_id,
+    syndicate_id
+  } = proposal;
+
+  const invitation = {
+    channel_id,
+    syndicate_id,
+    time_created: Date.now()
+  };
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_INVITATIONS,
+    Item: invitation
+  };
+
+  return DynamoDB.put(params).promise();
+}
+
+
+function createReservedSlug (syndicate_id, slug) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Item: {
+      reserved: syndicate_id,
+      slug
+    }
+  };
+
+  console.log(`[DynamoDB:SLUGS] creating reserved slug ${slug} for syndicate ${syndicate_id}`);
+  return DynamoDB.put(params).promise();
+}
+
+
+function createSlaveProposal ({ slave_id, syndicate_id }) {
+
+  const proposal = {
+    master_id: syndicate_id,
+    syndicate_id: slave_id,
+    type: "master"
+  };
+
+  return createProposal(null, proposal, false);
+}
+
+
+async function deleteInvitationsBySyndicateID (syndicate_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_INVITATIONS,
+    IndexName: `${process.env.DYNAMODB_TABLE_INVITATIONS}-GSI`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  };
+
+  const invitations = await queryAll(params);
+
+  console.log(`[DynamoDB:INVITATIONS] Deleting all invitations from syndicate ${syndicate_id}`);
+  const chunked = chunk(invitations, 25).map(chunk => {
+    const requests = chunk.map(({ channel_id }) => ({
+      DeleteRequest: {
+        Key: {
+          channel_id,
+          syndicate_id
+        }
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_INVITATIONS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
   });
 
-  // Convert all slave syndicate memberships to master syndicate.
+  return Promise.all(chunked);
+}
 
-  const _1 = DynamoDB.query({
+
+async function deleteMembershipsBySyndicateID (syndicate_id) {
+
+  const params = {
     TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
     IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
     KeyConditionExpression: "syndicate_id = :syndicate_id",
     ExpressionAttributeValues: {
-      ":syndicate_id": slave_syndicate_id
+      ":syndicate_id": syndicate_id
     }
-  }).promise()
-  .then(({ Items: memberships }) => {
+  };
 
-    memberships.map(({ channel_id }) => {
+  const memberships = await queryAll(params);
 
-      console.log(`${"[DynamoDB:MEMBERSHIPS] ".padEnd(30, ".")} Converting membership for channel ${channel_id} to syndicate ${master_syndicate_id}`);
-      return DynamoDB.update({
-        TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+  console.log(`[DynamoDB:MEMBERSHIPS] Deleting all memberships for syndicate ${syndicate_id}`);
+  const chunked = chunk(memberships, 25).map(chunk => {
+    const requests = chunk.map(({ channel_id }) => ({
+      DeleteRequest: {
         Key: {
           channel_id,
-          syndicate_id: slave_syndicate_id
-        },
-        UpdateExpression: `SET syndicate_id :syndicate_id`,
-        ExpressionAttributeValues: {
-          ":syndicate_id": master_syndicate_id
+          syndicate_id
         }
-      }).promise()
-      .catch(error => {
-
-        // Channel is a member of both syndicates already. Delete slave membership.
-
-        console.log(`${"[DynamoDB:MEMBERSHIPS] ".padEnd(30, ".")} Deleting membership for channel ${channel_id} in syndicate ${slave_syndicate_id}`);
-        return DynamoDB.delete({
-          TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-          Key: {
-            channel_id,
-            syndicate_id: slave_syndicate_id
-          }
-        }).promise();
-      });
-    });
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_MEMBERSHIPS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
   });
 
-  // Convert all slave syndicate subscriptions to master syndicate.
+  return Promise.all(chunked);
+}
 
-  const _2 = DynamoDB.query({
+
+async function deleteProposalsBySyndicateID (syndicate_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS
+  };
+
+  const proposals = (await scanAll(params)).filter(proposal => {
+
+    // Delete all proposals, including those referencing
+    // the syndicate as slave or master.
+
+    const {
+      master_id,
+      slave_id,
+      syndicate_id: id
+    } = proposal;
+
+    return (master_id === syndicate_id ||
+            slave_id === syndicate_id ||
+            id === syndicate_id);
+  });
+
+  console.log(`[DynamoDB:PROPOSALS] Deleting all proposals for syndicate ${syndicate_id}`);
+  const chunked = chunk(proposals, 25).map(chunk => {
+    const requests = chunk.map(({ time_created }) => ({
+      DeleteRequest: {
+        Key: {
+          syndicate_id,
+          time_created
+        }
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_PROPOSALS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
+  });
+
+  return Promise.all(chunked);
+}
+
+
+function deleteMessagesBySyndicateID (syndicate_id) {
+
+}
+
+
+async function deleteReservedSlug (slug, syndicate_id) {
+
+  const { reserved } = await getSlug(slug);
+
+  if (reserved === syndicate_id) {
+    return DynamoDB.delete({
+      TableName: process.env.DYNAMODB_TABLE_SLUGS,
+      Key: { slug }
+    }).promise()
+
+  } else {
+    throw new Error("![400] Slug reservation mismatch.");
+  }
+}
+
+
+function deleteSlug (slug) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: { slug }
+  };
+
+  console.log(`[DynamoDB:SLUGS] Deleting slug ${slug}`);
+  return DynamoDB.delete(params).promise();
+}
+
+
+async function deleteSlugsBySyndicateID (syndicate_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    IndexName: `${process.env.DYNAMODB_TABLE_SLUGS}-GSI-2`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  };
+
+  const slugs = await queryAll(params);
+
+  console.log(`[DynamoDB:SLUGS] Deleting all slugs for syndicate ${syndicate_id}`);
+  const chunked = chunk(slugs, 25).map(chunk => {
+    const requests = chunk.map(({ slug }) => ({
+      DeleteRequest: {
+        Key: {
+          slug
+        }
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_SLUGS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
+  });
+
+  return Promise.all(chunked);
+}
+
+
+async function deleteSubscriptionsBySyndicateID (syndicate_id) {
+
+  const params = {
     TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
     IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
     KeyConditionExpression: "syndicate_id = :syndicate_id",
     ExpressionAttributeValues: {
-      ":syndicate_id": slave_syndicate_id
+      ":syndicate_id": syndicate_id
     }
-  }).promise()
-  .then(({ Items: subscriptions }) => {
+  };
 
-    return Promise.all(subscriptions.map(subscription => {
+  const subscriptions = await queryAll(params);
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Deleting all subscriptions for syndicate ${syndicate_id}`);
+  const chunked = chunk(subscriptions, 25).map(chunk => {
+    const requests = chunk.map(({ subscriber_id, subscription_id }) => ({
+      DeleteRequest: {
+        Key: {
+          subscriber_id,
+          subscription_id
+        }
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_SUBSCRIPTIONS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
+  });
+
+  return Promise.all(chunked);
+}
+
+
+function deleteSyndicateBySyndicateID (syndicate_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+    Key: { syndicate_id },
+  };
+
+  console.log(`[DynamoDB:SYNDICATES] Deleting syndicate ${syndicate_id}`);
+  return DynamoDB.delete(params).promise();
+}
+
+
+function dissolveSyndicate (syndicate_id) {
+
+  const tasks = [
+    clearS3ByPrefix(`syndicates/${syndicate_id}`),
+    deleteInvitationsBySyndicateID(syndicate_id),
+    deleteSyndicateBySyndicateID(syndicate_id),
+    deleteMembershipsBySyndicateID(syndicate_id),
+    deleteMessagesBySyndicateID(syndicate_id),
+    deleteProposalsBySyndicateID(syndicate_id),
+    deleteSlugsBySyndicateID(syndicate_id),
+    deleteSubscriptionsBySyndicateID(syndicate_id),
+    purgeByProductID(`prod_syndicate_${syndicate_id}`)
+  ];
+
+  return Promise.all(tasks);
+}
+
+
+function getSlug (slug) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    Key: { slug }
+  };
+
+  return DynamoDB.get(params).promise()
+  .then(({ Item }) => Item);
+}
+
+
+function getSlugBySyndicateID (syndicate_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SLUGS,
+    IndexName: `${process.env.DYNAMODB_TABLE_SLUGS}-GSI-2`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+        ":syndicate_id": syndicate_id
+    }
+  };
+
+  return DynamoDB.query(params)
+  .promise().then(({ Items: slugs }) => {
+
+    if (slugs.length) {
+      return slugs[0];
+    }
+  });
+};
+
+
+function handleApproval (proposal) {
+
+  switch (proposal.type) {
+    case "update":
+      return applyUpdatesToSyndicate(proposal);
+
+    case "slave":
+      return createSlaveProposal(proposal);
+
+    case "master":
+      return mergeIntoMasterSyndicate(proposal);
+
+    case "join":
+      return createInvitation(proposal);
+  
+    case "dissolve":
+      return dissolveSyndicate(proposal.syndicate_id);
+
+    default:
+      throw new Error("![400] Unsupported proposal type.");
+  }
+}
+
+
+function handleRejection (proposal) {
+  
+}
+
+
+async function handleReservedSlugAssignment (syndicate_id, slug) {
+
+  const { reserved } = await getSlug(slug);
+
+  if (reserved === syndicate_id) {
+
+    const old_slug = await getSlugBySyndicateID(syndicate_id);
+
+    return Promise.all([
+      deleteSlug(old_slug.slug),
+      convertReservedSlug(slug, syndicate_id),
+      writeSyndicateUpdates(syndicate_id, { slug })
+    ]);
+
+  } else {
+    throw new Error("![400] Slug reservation mismatch.");
+  }
+}
+
+
+async function handleSyndicateTiersUpdate (syndicate_id, new_tiers) {
+
+  const {
+    Item: {
+      plan_id: old_plan_id,
+      tiers: old_tiers
+    }
+  } = await DynamoDB.get({
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+    Key: { syndicate_id }
+  }).promise();
+
+  // Curate fields.
+
+  new_tiers._1 = new_tiers._1 || {};
+  new_tiers._1.active = true;
+  new_tiers._1.title = new_tiers._1.title || old_tiers._1.title;
+  new_tiers._1.description = new_tiers._1.description || old_tiers._1.description;
+  new_tiers._1.rate = new_tiers._1.rate || old_tiers._1.rate;
+
+  new_tiers._2 = new_tiers._2 || {};
+  new_tiers._2.active = !!new_tiers._2.active;
+  new_tiers._2.title = new_tiers._2.title || old_tiers._2.title;
+  new_tiers._2.description = new_tiers._2.description || old_tiers._2.description;
+  new_tiers._2.rate = new_tiers._2.rate || old_tiers._2.rate;
+
+  new_tiers._3 = new_tiers._3 || {};
+  new_tiers._3.active = !!new_tiers._3.active;
+  new_tiers._3.title = new_tiers._3.title || old_tiers._3.title;
+  new_tiers._3.description = new_tiers._3.description || old_tiers._3.description;
+  new_tiers._3.rate = new_tiers._3.rate || old_tiers._3.rate;
+
+  // Check if a rate change is actually happening. Do not make any
+  // calls to Stripe if none of the tiers' rates are being updated.
+
+  if (new_tiers._1.rate === old_tiers._1.rate &&
+      new_tiers._2.rate === old_tiers._2.rate &&
+      new_tiers._3.rate === old_tiers._3.rate) {
+
+    return writeSyndicateTiersUpdate(syndicate_id, new_tiers);
+  }
+
+  const tiers = [
+    {
+      up_to: "1",
+      flat_amount: (new_tiers._1 || {}).rate || old_tiers._1.rate || 499
+    },
+    {
+      up_to: "2",
+      flat_amount: (new_tiers._2 || {}).rate || old_tiers._2.rate || 499
+    },
+    {
+      up_to: "inf",
+      flat_amount: (new_tiers._3 || {}).rate || old_tiers._3.rate || 499
+    },
+  ];
+
+  const plan = {
+    billing_scheme: "tiered",
+    currency: "usd",
+    interval: "month",
+    product: `prod_syndicate_${syndicate_id}`,
+    tiers,
+    tiers_mode: "volume"
+  };
+
+  // Update Stripe tiers.
+
+  const [
+    { id: new_plan_id }
+  ] = await Promise.all([
+    createStripePlan(plan),
+    deleteStripePlan(old_plan_id).catch(error => {
+      console.warn(`[Stripe] ${error}`);
+    })
+  ]);
+
+  // Write rate changes to DynamoDB.
+
+  return writeSyndicateTiersUpdate(syndicate_id, new_tiers, new_plan_id);
+}
+
+
+function identicalProposalExists (syndicate_id, data) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  };
+
+  return DynamoDB.query(params).promise()
+  .then(({ Items: proposals }) => {
+
+    for (var i = 0; i < proposals.length; i++) {
+
+      var proposal = proposals[i];
+
+      switch (data.type) {
+
+        case "update":
+          const _0 = omit(data.updates, ["new_profile"]);
+          const _1 = omit(proposal.updates, ["new_profile"]);
+
+          // Return true if identical, except for field "new_profile".
+
+          if (isEqual(_0, _1) && Object.keys(_0).length) {
+            return true;
+          }
+          break;
+
+        case "slave":
+          if (data.slave_id === proposal.slave_id) {
+            return true;
+          }
+          break;
+
+        case "master":
+          if (data.master_id === proposal.master_id) {
+            return true;
+          }
+          break;
+
+        case "join":
+          if (data.channel_id === proposal.channel_id) {
+            return true;
+          }
+          break;
+
+        case "dissolve":
+          if (proposal.type === "dissolve") {
+            return true;
+          }
+          break;
+          
+        default:
+          throw new Error("![400] Unsupported proposal type.");
+      }
+    }
+
+    return false;
+  });
+}
+
+
+async function mergeIntoMasterSyndicate (proposal) {
+
+  const {
+    syndicate_id: slave_id
+  } = proposal;
+
+  const {
+    master_id
+  } = proposal;
+
+  const {
+    Item: {
+      plan_id
+    }
+  } = await DynamoDB.get({
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+    Key: { syndicate_id: master_id }
+  }).promise();
+
+  // 0 - Convert all slave syndicate subscriptions to master syndicate.
+
+  const _0 = queryAll({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: { ":syndicate_id": slave_id }
+  })
+
+  .then(subs_slave => {
+
+    return Promise.all(subs_slave.map(async subscription => {
+
       const {
         subscriber_id,
         subscription_id
       } = subscription;
 
-      console.log(`${"[DynamoDB:SUBSCRIPTIONS] ".padEnd(30, ".")} Updating subscription ${subscription_id} to syndicate ${master_syndicate_id}`);
-      return DynamoDB.update({
+      // Check if subscriber is already subscribed to master syndicate.
+
+      const {
+        Items: subs_master
+      } = await DynamoDB.query({
         TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
-        Key: {
-          subscriber_id,
-          syndicate_id
-        },
-        UpdateExpression: "SET syndicate_id = :syndicate_id",
+        IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
+        KeyConditionExpression: "subscriber_id = :subscriber_id AND syndicate_id = :syndicate_id",
         ExpressionAttributeValues: {
-          ":syndicate_id": master_syndicate_id
+          ":subscriber_id": subscriber_id,
+          ":syndicate_id": master_id
         }
       }).promise();
 
+      if (subs_master.length) {
+
+        // If so, skip conversion. purgeByProductID() will delete slave subscriptions.
+
+        return Promise.resolve();
+      } else {
+
+        // Else, transfer subscriptions to master syndicate.
+
+        return convertSubscription(subscriber_id, subscription_id, master_id, plan_id);
+      }
     }));
   });
 
-  // Delete all slave syndicate proposals.
+  // 1 - Create new memberships for master syndicate.
 
-  const _3 = DynamoDB.query({
-    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
+  const _1 = queryAll({
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
     KeyConditionExpression: "syndicate_id = :syndicate_id",
-    ExpressionAttributeValues: {
-      ":syndicate_id": slave_syndicate_id
-    }
-  }).promise()
-  .then(({ Items: proposals }) => {
+    ExpressionAttributeValues: { ":syndicate_id": slave_id }
+  })
 
-    console.log(`${"[DynamoDB:PROPOSALS] ".padEnd(30, ".")} Batch deleting all proposals for syndicate ${slave_syndicate_id}`);
-    const chunked = chunk(proposals, 25).map(chunk => {
-      const requests = chunk.map(proposal_id => ({
-        DeleteRequest: {
-          Key: {
-            proposal_id
-          }
-        }
-      }));
-      const params = {
-        RequestItems: {
-          [process.env.DYNAMODB_TABLE_PROPOSALS]: requests
-        }
+  .then(memberships => {
+
+    return Promise.all(memberships.map(({ channel_id, time_created }) => {
+
+      const membership = {
+        channel_id,
+        syndicate_id: master_id,
+        time_created
       };
-      return DynamoDB.batchWrite(params).promise();
-    });
 
-    return Promise.all(chunked);
+      console.log(`[DynamoDB:MEMBERSHIPS] Creating membership ${channel_id}:${master_id}`);
+      return DynamoDB.put({
+        TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+        Item: membership
+      }).promise()
+    }));
   });
-
-  // Delete the slave syndicate itself.
-
-  console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Deleting syndicate ${slave_syndicate_id}`);
-  const _4 = DynamoDB.delete({
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-    Key: {
-      syndicate_id: slave_syndicate_id
-    },
-  }).promise();
-
-  // Delete syndicate media from S3.
-  // TODO.
 
   // Execute.
 
-  return Promise.all([_0,_1,_2,_3,_4]);
+  return Promise.all([_0,_1])
+  .then(() => dissolveSyndicate(slave_id));
 }
 
 
-function handleInvite(syndicate, proposal) {
+function convertSubscription (subscriber_id, subscription_id, master_id, plan_id) {
 
-  const {
-    syndicate_id,
-    channels
-  } = syndicate;
-  
-  const {
-    _channel_id: channel_id
-  } = proposal;
-
-  if (includes(Object.keys(channels), channel_id)) {
-
-    // If the channel to be invited is already a member of the syndicate...
-    // (i.e., if someone technically inclined is being tricky...)
-
-    throw new Error("Channel is already a member.");
-  }
-
-  const invitation = syndicate_id;
-
-  console.log(`[DynamoDB:CHANNELS] Adding invitation from syndicate ${syndicate_id} to channel ${channel_id}`);
-  return DynamoDB.update({
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id },
-    UpdateExpression: "ADD invitations :invitation",
-    ExpressionAttributeValues: { ":invitation": DynamoDB.createSet([invitation]) },
-
-    // This expression avoids accidental creation.
-
-    ConditionExpression: "attribute_exists(channel_id)"
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Converting subscription ${subscriber_id}:${subscription_id} to master syndicate ${master_id}`);
+  const _0 = DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    Key: {
+      subscriber_id,
+      subscription_id
+    },
+    UpdateExpression: "SET syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": master_id
+    }
   }).promise();
+
+  const _1 = transferSubscription(`sub_${subscription_id}`, plan_id);
+
+  return Promise.all([_0,_1]);
 }
 
 
-function handleDissolve({ syndicate_id, channels, proposals }) {
+function rejectionTriggered (proposal, memberships) {
 
-  // Remove syndicate from all member channels.
+  let votes = proposal.votes.filter(({ vote }) => !vote).length + 1;
+  let total = Object.keys(memberships).length;
 
-  const a = Promise.all(Object.keys(channels).map(channel_id => {
-    console.log(`[DynamoDB:CHANNELS] Dissolve: Removing syndicate ${syndicate_id} from channel ${channel_id}`);
-    return DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-      Key: { channel_id },
-      UpdateExpression: `DELETE syndicates :syndicate_id`,
-      ExpressionAttributeValues: { ":syndicate_id": DynamoDB.createSet([syndicate_id]) }
-    }).promise();
-  }));
+  return (votes / total >= (2 / 3));
+}
 
-  // Delete all proposals from proposal table.
 
-  const b = Promise.all(proposals.map(proposal_id => {
-    console.log(`[DynamoDB:PROPOSALS] Dissolve: Deleting proposal ${syndicate_id}:${proposal_id}`);
-    return DynamoDB.delete({
-      TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
-      Key: {
-        syndicate_id,
-        proposal_id
-      },
-    }).promise();
-  }));
+function syndicateHasChannel (syndicate_id, channel_id) {
 
-  // Delete the syndicate itself.
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    Key: {
+      syndicate_id,
+      channel_id
+    }
+  };
 
-  console.log(`[DynamoDB:SYNDICATES] Dissolve: Permanently deleting syndicate ${syndicate_id}`);
-  const c = DynamoDB.delete({
+  return DynamoDB.get(params).promise()
+  .then(({ Item: membership }) => !!membership);
+}
+
+// function assertSyndicateHasChannel (syndicate_id, channel_id) {
+
+//   const params = {
+//     TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+//     Key: {
+//       syndicate_id,
+//       channel_id
+//     }
+//   };
+
+//   return DynamoDB.get(params).promise()
+//   .then(({ Item: membership }) => {
+
+//     if (!membership) {
+//       throw new Error("![400] No such member channel.");
+//     }
+//   });
+// }
+
+
+function writeSyndicateUpdates (syndicate_id, updates) {
+
+  // Writes syndicate updates to DynamoDB.
+
+  const { ExpressionAttributeValues, UpdateExpression } = buildQuery(updates);
+
+  console.log(`[DynamoDB:SYNDICATES] Updating syndicate ${syndicate_id}`);
+  return DynamoDB.update({
     TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
     Key: { syndicate_id },
+    UpdateExpression,
+    ExpressionAttributeValues
   }).promise();
+}
 
-  // Purge Stripe stuff.
 
-  const product_id = `prod_syndicate_${syndicate_id}`;
-  const d = stripeUtilities.purgeByProductID(product_id);
+function writeSyndicateTiersUpdate (syndicate_id, tiers, plan_id) {
 
-  return Promise.all([a,b,c,d]);
+  const UpdateExpression = "SET tiers = :tiers" + (plan_id ? ", plan_id = :plan_id" : "");
+  const ExpressionAttributeValues = {
+    ":tiers": tiers,
+    ...(plan_id && { ":plan_id": plan_id })
+  };
+
+  console.log(`[DynamoDB:SYNDICATES] Updating tiers for syndicate ${syndicate_id}`);
+  return DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+    Key: { syndicate_id },
+    UpdateExpression,
+    ExpressionAttributeValues
+  }).promise();
 }

@@ -40,66 +40,275 @@ const schema = require("../../../schema");
 
 
 
-describe("Subscriber settings", function() {
+describe("Subscriber settings", () => {
 
-  describe("mutation: updateSubscriber", function() {
 
-    //
+  describe("mutation: updateSubscriber", () => {
+
+
+    it("should return channel_id from GraphQL", async () => {
+
+      const query = `
+        mutation ($data: SubscriberInput!) {
+          updateSubscriber (data: $data) {
+            subscriber_id
+          }
+        }
+      `;
+
+      const vars = {
+        data: {        
+          address: {
+            city: "Helena",
+            country: "US",
+            first_name: "Sum Yung",
+            last_name: "Gai",
+            line_1: "123 Foobar Lane",
+            line_2: null,
+            postal_code: "12345",
+            state: "Montana"
+          },
+          alias: "Vlad the Impaler",
+          email: "subscriber.0.updated@gmail.com",
+          password: "H4xx0rz666"
+        }
+      };
+
+      const ctx = {
+        subscriber_id: global.subscribers._1.object.subscriber_id,
+        ip_address: "127.0.0.1"
+      };
+
+      const expected = {
+        data: {
+          updateSubscriber: {
+            subscriber_id: global.subscribers._1.object.subscriber_id
+          }
+        }
+      };
+
+      const result = await graphql(schema, query, null, ctx, vars);
+
+      if (result.errors) {
+        throw new Error(result.errors[0].message);
+      }
+
+      expect(result).to.deep.equal(expected);
+    });
+
+
+    it("should update the subscriber object in DynamoDB", async () => {
+
+      const expected = {
+        address: {
+          city: "Helena",
+          country: "US",
+          first_name: "Sum Yung",
+          last_name: "Gai",
+          line_1: "123 Foobar Lane",
+          line_2: null,
+          postal_code: "12345",
+          state: "Montana"
+        },
+        alias: "Vlad the Impaler",
+
+        // Note: Email will be updated when subscriber clicks
+        // email link confirming the email address.
+
+        email: "subscriber.0@foobar.com",
+        subscriber_id: global.subscribers._1.object.subscriber_id,
+        time_created:  global.subscribers._1.object.time_created
+      };
+
+      // Get the updated subscriber object.
+
+      const {
+        Item: subscriber
+      } = await DynamoDB.get({
+        TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
+        Key: { subscriber_id: global.subscribers._1.object.subscriber_id }
+      }).promise();
+
+      global.subscribers._1.object = Object.assign({}, subscriber);
+
+      delete subscriber.time_updated;
+
+      expect(global.subscribers._1.object.time_updated).to.be.a("number");
+      expect(subscriber).to.deep.equal(expected);  
+    });
+  });
+
+
+  describe("mutation: createSource", () => {
+
+
+    it("should return true from GraphQL", async () => {
+
+      const query = `
+        mutation ($token: ID!) {
+          createSource (token: $token)
+        }
+      `;
+
+      const vars = {
+        token: "tok_mastercard"
+      };
+
+      const ctx = {
+        subscriber_id: global.subscribers._1.object.subscriber_id,
+        ip_address: "127.0.0.1"
+      };
+
+      const expected = {
+        data: {
+          createSource: true
+        }
+      };
+
+      const result = await graphql(schema, query, null, ctx, vars);
+
+      if (result.errors) {
+        throw new Error(result.errors[0].message);
+      }
+
+      expect(result).to.deep.equal(expected);
+    });
+
+
+    it("should add a new source to the Stripe customer", async () => {
+
+      const {
+        sources: {
+          data: sources
+        }
+      } = await stripe.customers.retrieve(`cus_${global.subscribers._1.object.subscriber_id}`);
+
+      expect(sources.length).to.equal(2);
+    });
+  });
+
+
+  describe("mutation: setDefaultSource", () => {
+
+
+    before(async function () {
+
+      const {
+        sources: {
+          data: sources
+        }
+      } = await stripe.customers.retrieve(`cus_${global.subscribers._1.object.subscriber_id}`);
+
+      global.subscribers._1.sources._1 = sources[0];
+      global.subscribers._1.sources._2 = sources[1];
+    });
+
+
+    it("should return true from GraphQL", async () => {
+
+      const query = `
+        mutation ($source_id: ID!) {
+          setDefaultSource (source_id: $source_id)
+        }
+      `;
+
+      const vars = {
+        source_id: global.subscribers._1.sources._2.id
+      };
+
+      const ctx = {
+        subscriber_id: global.subscribers._1.object.subscriber_id,
+        ip_address: "127.0.0.1"
+      };
+
+      const expected = {
+        data: {
+          setDefaultSource: true
+        }
+      };
+
+      const result = await graphql(schema, query, null, ctx, vars);
+
+      if (result.errors) {
+        throw new Error(result.errors[0].message);
+      }
+
+      expect(result).to.deep.equal(expected);
+    });
+
+
+    it("should set the Stripe customer's default source", async () => {
+
+      const {
+        default_source
+      } = await stripe.customers.retrieve(`cus_${global.subscribers._1.object.subscriber_id}`);
+
+      expect(default_source).to.equal(global.subscribers._1.sources._2.id);
+    });
+  });
+
+
+  describe("mutation: deleteSource", () => {
+
+
+    it("should return true from GraphQL", async () => {
+
+      const query = `
+        mutation ($source_id: ID!) {
+          deleteSource (source_id: $source_id)
+        }
+      `;
+
+      const vars = {
+        source_id: global.subscribers._1.sources._2.id
+      };
+
+      const ctx = {
+        subscriber_id: global.subscribers._1.object.subscriber_id,
+        ip_address: "127.0.0.1"
+      };
+
+      const expected = {
+        data: {
+          deleteSource: true
+        }
+      };
+
+      const result = await graphql(schema, query, null, ctx, vars);
+
+      if (result.errors) {
+        throw new Error(result.errors[0].message);
+      }
+
+      expect(result).to.deep.equal(expected);
+    });
+
+
+    it("should delete the source from Stripe", async () => {
+
+      const {
+        sources: {
+          data: sources
+        }
+      } = await stripe.customers.retrieve(`cus_${global.subscribers._1.object.subscriber_id}`);
+
+      expect(sources.length).to.equal(1);
+    });
+  });
+
+
+  describe("mutation: cancelAllSubscriptions", () => {
 
   });
 
 
-  describe("mutation: createPaymentMethod", function() {
-
-
-
-  });
-
-
-  describe("mutation: deletePaymentMethod", function() {
-
-    // Same as deleting account
+  describe("mutation: deleteSubscriber", () => {
 
   });
 });
 
-describe("Subscriber settings (payment)", function() {
 
-  
-});
-
-describe("Subscriber settings (general)", function() {
-
-  describe("mutation: updateSubscriberEmail", function() {
-
-
-
-  });
-
-
-  describe("mutation: updateSubscriberPassword", function() {
-
-
-
-  });
-
-
-  describe("mutation: cancelAllSubscriptions", function() {
-
-
-
-  });
-
-
-  describe("mutation: deleteSubscriber", function() {
-
-
-
-  });
-});
-
-
-describe("Subscriptions", function() {
+describe("Subscriptions", () => {
 
 
   describe("mutation: createSubscription (channel)", function() {
@@ -225,6 +434,21 @@ describe("Subscriptions", function() {
   describe("mutation: createSubscription (syndicate)", function() {
 
 
+    before(async function() {
+
+      // Delete channel subscription.
+
+      await stripe.subscriptions.del(`sub_${global.subscribers._1.subscriptions._1.subscription_id}`);
+      await DynamoDB.delete({
+        TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+        Key: {
+          subscriber_id: global.subscribers._1.object.subscriber_id,
+          subscription_id: global.subscribers._1.subscriptions._1.subscription_id
+        }
+      }).promise();
+    });
+
+
     it("should return subscription_id from GraphQL", async () => {
 
       const query = `
@@ -272,13 +496,13 @@ describe("Subscriptions", function() {
         TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS
       }).promise();
 
-      // Expect the table to have two subscription objects.
+      // Expect the table to have one subscription object.
 
-      expect(subscriptions.length).to.equal(2);
+      expect(subscriptions.length).to.equal(1);
 
       // Expect "deep.equal", except the values we don't know beforehand.
 
-      const subscription = subscriptions[0].syndicate_id ? subscriptions[0] : subscriptions[1];
+      const subscription = subscriptions[0];
       global.subscribers._1.subscriptions._2 = Object.assign({}, subscription);
 
       delete subscription.subscription_id;
@@ -288,6 +512,7 @@ describe("Subscriptions", function() {
       expect(global.subscribers._1.subscriptions._2.time_created).to.be.a("number");
       expect(subscription).to.deep.equal(expected);
     });
+
 
     it("should create a new subscription in Stripe", async () => {
 

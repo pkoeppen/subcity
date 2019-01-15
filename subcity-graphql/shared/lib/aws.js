@@ -2,9 +2,17 @@ const AWS = require("aws-sdk");
 AWS.config.update({
 	region: "us-east-1"
 });
-
-
+const AmazonDAXClient = require("amazon-dax-client");
 const DynamoDB = new AWS.DynamoDB.DocumentClient();
+
+// const DAXClient = new AmazonDAXClient({
+//   endpoints: ["subcity-dax.qbyyyg.clustercfg.dax.use1.cache.amazonaws.com:8111"],
+//   region: "us-east-1"
+// });
+
+// const DAX = new AWS.DynamoDB.DocumentClient({
+//   service: DAXClient
+// });
 
 const S3 = new AWS.S3({
   apiVersion: "2006-03-01",
@@ -12,14 +20,18 @@ const S3 = new AWS.S3({
   s3ForcePathStyle: true,
   endpoint: process.env.DATA_HOST
 });
+const SES = new AWS.SES({apiVersion: "2010-12-01"});
 
 
 module.exports = {
   clearS3ByPrefix,
+  //DAX,
   DynamoDB,
   moveKey,
   queryAll,
-  S3
+  S3,
+  SES,
+  scanAll,
 };
 
 
@@ -101,6 +113,7 @@ async function moveKey (from, to) {
     // automatically transfer and delete any existing files.
 
     return await S3.putObject({ Body, Bucket: process.env.S3_BUCKET_IN, Key: to }).promise()
+    .then(() => S3.deleteObject({ Bucket: process.env.S3_BUCKET_OUT, Key: from }).promise());
 
   } catch (error) {
     console.error(`[moveKey] ${error.message || error}`);
@@ -119,6 +132,31 @@ async function queryAll (params) {
       Items: buffer,
       LastEvaluatedKey
     } = await DynamoDB.query(params).promise();
+
+    items = items.concat(buffer);
+
+    if (LastEvaluatedKey) {
+      params.ExclusiveStartKey = LastEvaluatedKey;
+    } else {
+      has_more = false;
+    }
+  }
+
+  return items;
+}
+
+
+async function scanAll (params) {
+
+  var items = [];
+  var has_more = true;
+
+  while (has_more) {
+
+    var {
+      Items: buffer,
+      LastEvaluatedKey
+    } = await DynamoDB.scan(params).promise();
 
     items = items.concat(buffer);
 

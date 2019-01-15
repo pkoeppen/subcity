@@ -1,13 +1,8 @@
-"use strict";
-
 const jwt = require("jsonwebtoken");
-
-////////////////////////////////////////////////////
 
 const AUTH0_CLIENT_ID         = process.env.AUTH0_CLIENT_ID;
 const AUTH0_CLIENT_PUBLIC_KEY = process.env.AUTH0_CLIENT_PUBLIC_KEY;
 
-////////////////////////////////////////////////////
 
 module.exports.auth = (event, context, callback) => {
   if (!event.authorizationToken) {
@@ -19,7 +14,7 @@ module.exports.auth = (event, context, callback) => {
 
   if (!(tokenParts[0].toLowerCase() === "bearer" && tokenValue)) {
 
-    // No JRR Tolkien
+    // No JRR Tolkien.
 
     return callback("Unauthorized.", { statusCode: 403 });
   }
@@ -32,7 +27,6 @@ module.exports.auth = (event, context, callback) => {
         console.error(`Error: Token invalid.\n${error}`);
         return callback("Unauthorized.", { statusCode: 403 });
       }
-      console.log(`Valid from custom authorizer: ${decoded}`);
       return callback(null, generatePolicy(decoded, "Allow", event.methodArn));
     });
   }
@@ -43,13 +37,12 @@ module.exports.auth = (event, context, callback) => {
   }
 };
 
-////////////////////////////////////////////////////
 
 function generatePolicy(claims, effect, resource) {
 
   const authResponse       = {};
   authResponse.principalId = claims.sub;
-  authResponse.context     = { role: claims[`${process.env.SPA_HOST}/roles`][0] };
+  authResponse.context     = { role: claims["https://sub.city/role"] };
 
   if (effect && resource) {
     const policyDocument        = {};

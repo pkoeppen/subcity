@@ -13,20 +13,28 @@ const {
 } = require("../types");
 
 const {
-
-    getSyndicateById,
-    getSyndicateBySlug,
-    getSyndicatesByRange,
-
   createSyndicate,
+  getAllSyndicates,
+  getSyndicateByID,
+  getSyndicateBySlug,
+  getSyndicatesByChannelID,
   leaveSyndicate
-  
 } = require("../resolvers");
 
 
 const SyndicateQuery = {
 
-  getSyndicateById: {
+  getAllSyndicates: {
+
+    type: new GraphQLList(SyndicateType),
+    resolve: (root, args, ctx, ast) => {
+
+      return getAllSyndicates();
+    }
+  },
+
+  getSyndicateByID: {
+
     type: SyndicateType,
     args: {
       syndicate_id: {
@@ -34,27 +42,19 @@ const SyndicateQuery = {
         type: new GraphQLNonNull(GraphQLID)
       }
     },
-    resolve: getSyndicateById
-  },
 
-  getSyndicatesByRange: {
-    type: new GraphQLList(SyndicateType),
-    args: {
-      data: {
-        name: "data",
-        type: new GraphQLNonNull(new GraphQLInputObjectType({
-          name: "SyndicateRangeInput",
-          fields: () => ({
-            search: { type: GraphQLString },
-            deep:   { type: GraphQLBoolean }
-          })
-        }))
-      }
-    },
-    resolve: getSyndicatesByRange
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        syndicate_id
+      } = args;
+
+      return getSyndicateByID(syndicate_id);
+    }
   },
 
   getSyndicateBySlug: {
+
     type: SyndicateType,
     args: {
       slug: {
@@ -62,9 +62,29 @@ const SyndicateQuery = {
         type: new GraphQLNonNull(GraphQLString)
       }
     },
-    resolve: getSyndicateBySlug
-  }
 
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        slug
+      } = args;
+
+      return getSyndicateBySlug(slug);
+    }
+  },
+
+  getSyndicatesByChannelID: {
+
+    type: new GraphQLList(SyndicateType),
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      return getSyndicatesByChannelID(channel_id);
+    }
+  },
 };
 
 

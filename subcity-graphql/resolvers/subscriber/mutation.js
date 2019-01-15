@@ -1,24 +1,33 @@
 const chunk = require("lodash/chunk");
+const intersectionBy = require("lodash/intersectionBy");
 
 const {
   buildQuery,
   createAuth0User,
   createStripeCustomer,
+  createStripeSource,
   createStripeSubscription,
   deleteAuth0User,
   deleteStripeCustomer,
+  deleteStripeSource,
   deleteStripeSubscription,
   DynamoDB,
+  updatePassword,
   queryAll,
-  sanitize
+  sanitize,
+  setDefaultStripeSource
 } = require("../../shared");
 
 
 module.exports = {
+  createSource,
   createSubscription,
+  deleteAllSubscriptions,
+  deleteSource,
   deleteSubscription,
   deleteSubscriber,
   initializeSubscriber,
+  setDefaultSource,
   updateSubscriber,
   writeSubscriberUpdates
 };
@@ -27,6 +36,13 @@ module.exports = {
 ////////////////////////////////////////////////////////////
 //////////////////////// FUNCTIONS /////////////////////////
 ////////////////////////////////////////////////////////////
+
+
+function createSource (subscriber_id, token) {
+
+  return createStripeSource(`cus_${subscriber_id}`, token)
+  .then(() => true);
+}
 
 
 function createSubscription (subscriber_id, data) {
@@ -49,6 +65,20 @@ function createSubscription (subscriber_id, data) {
   } else {
     throw new Error("! Channel or syndicate ID missing.");
   }
+}
+
+
+function deleteAllSubscriptions (subscriber_id) {
+
+  return deleteSubscriptionsBySubscriberID(subscriber_id)
+  .then(() => true);
+}
+
+
+function deleteSource (subscriber_id, source_id) {
+
+  return deleteStripeSource(`cus_${subscriber_id}`, source_id)
+  .then(() => true);
 }
 
 
@@ -88,13 +118,7 @@ async function deleteSubscription (subscriber_id, subscription_id) {
     }
   };
 
-  const {
-    Item: subscription
-  } = await DynamoDB.get(params).promise();
-
-  if (!subscription) {
-    throw new Error("! No such subscription.");
-  }
+  // Wait for Stripe deletion to succeed.
 
   await deleteStripeSubscription(`sub_${subscription_id}`);
 
@@ -136,23 +160,34 @@ async function initializeSubscriber (data) {
     deleteSubscriber(subscriber_id);
     throw error;
   }
-};
+}
+
+
+function setDefaultSource (subscriber_id, source_id) {
+
+  return setDefaultStripeSource(`cus_${subscriber_id}`, source_id)
+  .then(() => true);
+}
 
 
 function updateSubscriber (subscriber_id, { email, password, ...data }) {
 
-  if (email) {
-    // TODO
-  }
-
-  if (password) {
-    // TODO
-  }
+  // TODO: Sanitize address input
 
   data = sanitize(data);
   data.time_updated = Date.now();
 
   const tasks = [];
+
+  if (email) {
+
+    // Send confirmation email link
+
+  }
+
+  if (password) {
+    tasks.push(updatePassword(`auth0|cus_${subscriber_id}`, password));
+  }
 
   tasks.push(writeSubscriberUpdates(subscriber_id, data));
 
@@ -323,7 +358,7 @@ async function subscribeToSyndicate (subscriber_id, syndicate_id, tier, extra) {
       }
     },
     {
-      Items: existing_subscriptions
+      Items: subscriptions
     }
   ] = await Promise.all([
 
@@ -334,16 +369,14 @@ async function subscribeToSyndicate (subscriber_id, syndicate_id, tier, extra) {
 
     DynamoDB.query({
       TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
-      IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-2`,
-      KeyConditionExpression: "syndicate_id = :syndicate_id AND subscriber_id = :subscriber_id",
+      KeyConditionExpression: "subscriber_id = :subscriber_id",
       ExpressionAttributeValues: {
-        ":syndicate_id": syndicate_id,
         ":subscriber_id": subscriber_id
       }
     }).promise()
   ]);
 
-  if (existing_subscriptions.length) {
+  if (subscriptions.filter(({ syndicate_id: id }) => (id === syndicate_id)).length) {
     throw new Error("! Already subscribed.");
   }
 
@@ -364,12 +397,42 @@ async function subscribeToSyndicate (subscriber_id, syndicate_id, tier, extra) {
     time_created: Date.now()
   };
 
-  // Create DynamoDB subscription.
-
   console.log(`[DynamoDB:SUBSCRIPTIONS] Creating subscription ${subscriber_id}:${subscription_id}`);
-  return DynamoDB.put({
-    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
-    Item: subscription
-  }).promise()
+  return Promise.all([
+
+    // Remove channel subscriptions covered by new syndicate subscription.
+
+    resolveCoverage(syndicate_id, subscriber_id, subscriptions),
+
+    // Create subscription in DynamoDB.
+
+    DynamoDB.put({
+      TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+      Item: subscription
+    }).promise()
+  ])
   .then(() => ({ subscription_id }));
+}
+
+
+async function resolveCoverage (syndicate_id, subscriber_id, subscriptions) {
+
+  // This method deletes all channel subscriptions already covered under the syndicate.
+
+  const {
+    Items: channels
+  } = await DynamoDB.query({
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  }).promise();
+
+  // Produces an array of subscriptions intersected with "channel_id" from the channels array.
+
+  const covered = intersectionBy(subscriptions, channels, ({ channel_id }) => channel_id);
+
+  return Promise.all(covered.map(({ subscriber_id, subscription_id }) => deleteSubscription(subscriber_id, subscription_id)));
 }

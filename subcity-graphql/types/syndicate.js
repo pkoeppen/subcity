@@ -11,6 +11,10 @@ const {
 } = require("graphql");
 
 const {
+  ChannelType
+} = require("./channel");
+
+const {
   MarkdownType,
   TiersInputType,
   TiersType,
@@ -19,15 +23,18 @@ const {
 } = require("./misc");
 
 const {
+  ProposalType
+} = require("./proposal");
 
+const {
+  SubscriptionType
+} = require("./subscriber");
 
-    getChannelsByIdArray,
-
-
-
-    getProposalsByIdArray
-
-
+const {
+  getChannelsBySyndicateID,
+  getProposalsBySyndicateID,
+  getSubscriptionsBySyndicateID,
+  getSyndicateByID,
 } = require("../resolvers");
 
 
@@ -35,59 +42,61 @@ const SyndicateType = new GraphQLObjectType({
   name: "Syndicate",
   fields: () => ({
 
-    currency:     { type: new GraphQLNonNull(GraphQLString)  },
     description:  { type: new GraphQLNonNull(MarkdownType)   },
     links:        { type: new GraphQLNonNull(LinksType)      },
-    overview:     { type: MarkdownType                       },
     payload:      { type: GraphQLString                      },
+    plan_id:      { type: new GraphQLNonNull(GraphQLString)  },
     slug:         { type: new GraphQLNonNull(GraphQLString)  },
-    //subscription:   { type: new GraphQLNonNull(SubscriptionType)  },
     syndicate_id: { type: new GraphQLNonNull(GraphQLID)      },
     tiers:        { type: new GraphQLNonNull(TiersType)      },
     time_created: { type: new GraphQLNonNull(GraphQLFloat)   },
     time_updated: { type: new GraphQLNonNull(GraphQLFloat)   },
-    title:        { type: new GraphQLNonNull(GraphQLString)  },
+    title:        { type: GraphQLString                      },
     unlisted:     { type: new GraphQLNonNull(GraphQLBoolean) },
 
-    
-    // // Key.
+    members: {
+      type: new GraphQLList(ChannelType),
+      resolve: (root, args, ctx, ast) => {
 
-    // syndicate_id: { type: new GraphQLNonNull(GraphQLID) },
+        const {
+          syndicate_id
+        } = root;
 
-    // // Non-editable.
+        return getChannelsBySyndicateID(syndicate_id);
+      }
+    },
 
-    // time_created:     { type: new GraphQLNonNull(GraphQLFloat) },
-    // profile_url:      { type: new GraphQLNonNull(GraphQLString) },
-    // earnings_total:   { type: new GraphQLNonNull(GraphQLInt) },    // This is how much the syndicate has ever made.
-    // earnings_cut:     { type: new GraphQLNonNull(GraphQLFloat) },  // This is how much the requesting channel has made with this syndicate.
-    // projected_month:  { type: new GraphQLNonNull(GraphQLFloat) },  // This is simply subscribers.length * subscription_rate.
-    // projected_cut:    { type: new GraphQLNonNull(GraphQLFloat) },  // This is projected_month / channels.length.
-    // subscriber_count: { type: new GraphQLNonNull(GraphQLInt) },
-    // currency:         { type: new GraphQLNonNull(GraphQLString) },
-    // is_subscribed:    { type: GraphQLBoolean },
+    proposals: {
+      type: new GraphQLList(ProposalType),
+      resolve: (root, args, ctx, ast) => {
 
-    // // Editable.
+        const {
+          channel_id
+        } = ctx;
 
-    // slug:              { type: new GraphQLNonNull(GraphQLString) },
-    // title:             { type: new GraphQLNonNull(GraphQLString) },
-    // description:       { type: new GraphQLNonNull(GraphQLString) },
-    // payload:       { type: GraphQLString },
-    // is_nsfw:           { type: new GraphQLNonNull(GraphQLBoolean) },
-    // is_unlisted:       { type: new GraphQLNonNull(GraphQLBoolean) },
-    // subscription_rate: { type: new GraphQLNonNull(GraphQLInt) },
-    // subscriber_pays:   { type: new GraphQLNonNull(GraphQLBoolean) },
+        const {
+          syndicate_id
+        } = root;
 
-    // // Edge nodes.
-    
-    // subscribers: { type: new GraphQLList(GraphQLID) },
-    // channels: {
-    //   type: new GraphQLNonNull(new GraphQLList(require("./channel").ChannelType)),
-    //   resolve: getChannelsByIdArray
-    // },
-    // proposals: {
-    //   type: new GraphQLList(require("./proposal").ProposalType),
-    //   resolve: getProposalsByIdArray
-    // }
+        return getProposalsBySyndicateID(syndicate_id, channel_id);
+      }
+    },
+
+    subscriptions: {
+      type: new GraphQLList(SubscriptionType),
+      resolve: (root, args, ctx, ast) => {
+
+        const {
+          channel_id
+        } = ctx;
+
+        const {
+          syndicate_id
+        } = root;
+
+        return getSubscriptionsBySyndicateID(syndicate_id, channel_id);
+      }
+    },
   })
 });
 
@@ -95,20 +104,42 @@ const SyndicateInputType = new GraphQLInputObjectType({
   name: "SyndicateInput",
   fields: () => ({
 
-    description: { type: GraphQLString  },
-    links:       { type: LinksInputType },
-    overview:    { type: GraphQLString  },
-    payload:     { type: GraphQLString  },
-    slug:        { type: GraphQLString  },
-    tiers:       { type: TiersInputType },
-    title:       { type: GraphQLString  },
-    unlisted:    { type: GraphQLBoolean }
+    description: { type: new GraphQLNonNull(GraphQLString)  },
+    links:       { type: new GraphQLNonNull(LinksInputType) },
+    payload:     { type: GraphQLString                      },
+    slug:        { type: new GraphQLNonNull(GraphQLString)  },
+    tiers:       { type: new GraphQLNonNull(TiersInputType) },
+    title:       { type: new GraphQLNonNull(GraphQLString)  },
+    unlisted:    { type: new GraphQLNonNull(GraphQLBoolean) }
 
+  })
+});
+
+const InvitationType = new GraphQLObjectType({
+  name: "Invitation",
+  fields: () => ({
+
+    channel_id: { type: new GraphQLNonNull(GraphQLID) },
+    syndicate_id: { type: new GraphQLNonNull(GraphQLID) },
+    time_created: { type: new GraphQLNonNull(GraphQLFloat) },
+
+    syndicate: {
+      type: new GraphQLNonNull(SyndicateType),
+      resolve: (root, args, ctx, ast) => {
+
+        const {
+          syndicate_id
+        } = root;
+
+        return getSyndicateByID(syndicate_id);
+      }
+    }
   })
 });
 
 
 module.exports = {
+  InvitationType,
   SyndicateType,
   SyndicateInputType
 };

@@ -62,18 +62,12 @@ describe("Update channel", function() {
           description: "Description 0",
           funding: "per_month",
           links: {
-            _1: {
-              title: "Foobar Link 1",
-              url: "https://sub.city"
-            },
-            _2: {
-              title: "Foobar Link 2",
-              url: "https://google.com"
-            },
-            _3: {
-              title: "Foobar Link 3",
-              url: "https://yandex.ru"
-            }
+            discord: "https://google.com",
+            facebook: "https://google.com",
+            instagram: "https://google.com",
+            twitch: "https://google.com",
+            twitter: "https://google.com",
+            youtube: "https://google.com",
           },
           overview: "Overview 0",
           payload: "test_image.jpg",
@@ -81,19 +75,19 @@ describe("Update channel", function() {
           tiers: {
             _1: {
               active: true,
-              alias: "Standard Tier",
+              title: "Standard Tier",
               description: "Comes with _all kinds_ of cool stuff.",
               rate: 1999
             },
             _2: {
               active: true,
-              alias: "Premium Tier",
+              title: "Premium Tier",
               description: "Comes with _all kinds_ of cool stuff.",
               rate: 3999
             },
             _3: {
               active: true,
-              alias: "Platinum Tier",
+              title: "Platinum Tier",
               description: "Comes with _all kinds_ of cool stuff.",
               rate: 7999
             }
@@ -136,18 +130,12 @@ describe("Update channel", function() {
         },
         funding: "per_month",
         links: {
-          _1: {
-            title: "Foobar Link 1",
-            url: "https://sub.city"
-          },
-          _2: {
-            title: "Foobar Link 2",
-            url: "https://google.com"
-          },
-          _3: {
-            title: "Foobar Link 3",
-            url: "https://yandex.ru"
-          }
+          discord: "https://google.com",
+          facebook: "https://google.com",
+          instagram: "https://google.com",
+          twitch: "https://google.com",
+          twitter: "https://google.com",
+          youtube: "https://google.com",
         },
         overview: {
           raw: "Overview 0",
@@ -157,7 +145,7 @@ describe("Update channel", function() {
         tiers: {
           _1: {
             active: true,
-            alias: "Standard Tier",
+            title: "Standard Tier",
             description: {
               raw: "Comes with _all kinds_ of cool stuff.",
               rendered: "Comes with <em>all kinds</em> of cool stuff."
@@ -166,7 +154,7 @@ describe("Update channel", function() {
           },
           _2: {
             active: true,
-            alias: "Premium Tier",
+            title: "Premium Tier",
             description: {
               raw: "Comes with _all kinds_ of cool stuff.",
               rendered: "Comes with <em>all kinds</em> of cool stuff."
@@ -175,7 +163,7 @@ describe("Update channel", function() {
           },
           _3: {
             active: true,
-            alias: "Platinum Tier",
+            title: "Platinum Tier",
             description: {
               raw: "Comes with _all kinds_ of cool stuff.",
               rendered: "Comes with <em>all kinds</em> of cool stuff."

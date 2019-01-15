@@ -1,49 +1,10 @@
 const mime = require("mime-types");
 const sanitizeFilename = require("sanitize-filename");
 const {
-  promisify,
   DynamoDB,
+  promisify,
   S3
-} = require("../../shared");
-
-
-///////////////////////////////////////////////////
-
-
-const getUploadURL = (root, args) => {
-
-  const { data } = args;
-
-  if (!data.mime_type.length ||
-      !data.upload_type.length ||
-      !data.filename.length) {
-    throw new Error("Invalid or missing input.");
-  }
-
-  // DO NOT change the order of these. The "getProposalUploadKey" function looks
-  // for both a "syndicate_id" and "proposal_id" field before falling/failing back
-  // to "getSyndicateUploadKey", which only looks for a "syndicate_id" field.
-
-  const key = getReleaseUploadKey(data) ||
-              getProposalUploadKey(data) ||
-              getSyndicateUploadKey(data) ||
-              getChannelUploadKey(data);
-
-  if (!key) { throw new Error("Invalid or missing input."); }
-
-  const params = {
-    Bucket: process.env.S3_BUCKET_IN,
-    Key: key,
-    ContentType: "image/jpeg"
-  };
-
-  // This needs to use the "promisify" shim - Doesn't have a promise() method.
-
-  return promisify(callback => S3.getSignedUrl("putObject", params, callback));
-};
-
-
-////////////////////////////////////////////////////
+} = require("../shared");
 
 
 module.exports = {
@@ -51,7 +12,38 @@ module.exports = {
 };
 
 
-////////////////////////////////////////////////////
+async function getUploadURL (channel_id, data) {
+
+  const {
+    time_created,
+    syndicate_id
+  } = data;
+
+  var Key, ContentType;
+
+  if (time_created && syndicate_id) {
+    Key = await getProposalUploadKey({ channel_id, ...data });
+
+  } else if (time_created && !syndicate_id) {
+    Key = await getReleaseUploadKey({ channel_id, ...data });
+
+  } else if (!time_created && syndicate_id) {
+    Key = await getSyndicateUploadKey({ channel_id, ...data });
+    
+  } else {
+    Key = await getChannelUploadKey({ channel_id, ...data });
+  }
+
+  const params = {
+    Bucket: process.env.S3_BUCKET_IN,
+    Key,
+    // ContentType: "image/jpeg"
+  };
+
+  // This needs to use the "promisify" shim.
+
+  return promisify(callback => S3.getSignedUrl("putObject", params, callback));
+};
 
 
 const allowedImageExtensions = [
@@ -60,195 +52,164 @@ const allowedImageExtensions = [
   "tif"
 ];
 
-const rollback = {
 
-  async deleteRelease(channel_id, release_id) {
-    const result = await require("./release").delete({ channel_id, release_id });
-    return result;
-  },
-
-  async deleteProposal(syndicate_id, proposal_id) {
-    const result = await require("./proposal").delete({ syndicate_id, proposal_id });
-    return result;
-  }
-};
-
-
-function getFilename(mime_type, upload_type, filename) {
+function getFilename(filename, mime_type, upload_type) {
 
   // Disallow long filenames.
 
-  if (filename.length > 200) { return false; }
+  if (filename.length > 200) {
+    throw new Error("![400] Filename cannot be more than 200 characters long.");
+  }
 
-  if (upload_type === "payloadFile") {
+  if (upload_type === "payload") {
 
     // Remove spaces and sanitize the filename.
 
     return sanitizeFilename(filename.replace(/\s/g, "_"));
-  } else if (upload_type === "profileImage" || upload_type === "bannerImage") {
+
+  } else if (upload_type === "profile" || upload_type === "banner") {
 
     // If it's a profile/banner image upload, build the correct JPG/PNG filename.
     
     const ext = mime.extension(mime_type);
-    return (ext && allowedImageExtensions.indexOf(ext) >= 0) ? `${upload_type.replace(/image/gi, "")}.${ext}` : null;
+
+    if (!ext || allowedImageExtensions.indexOf(ext) < 0) {
+      throw new Error("![400] Invalid mime type.");
+    }
+
+    return `${upload_type}.${ext}`;
+
   } else {
-    return false;
+    throw new Error("![400] Invalid file input.");
   }
 }
 
-function getReleaseUploadKey({ channel_id, release_id, mime_type, upload_type, filename }) {
 
-  if (!release_id) {
-    return false;
+async function getReleaseUploadKey({ channel_id, time_created, mime_type, upload_type, filename }) {
+
+  filename = getFilename(filename, mime_type, upload_type);
+
+  const checks = [
+    channelHasRelease(channel_id, time_created)
+  ];
+
+  try {
+    await Promise.all(checks);
+    return (upload_type === "payload"
+          ? `channels/${channel_id}/releases/${time_created}/payload/${filename}`
+          : `channels/${channel_id}/releases/${time_created}/${filename}`);
+  } catch(error) {
+    throw error;
   }
-
-  // Sanitizes the filename and asserts that the channel
-  // actually possesses the release in question.
-
-  filename = getFilename(mime_type, upload_type, filename);
-
-  if (!channelHasRelease(channel_id, release_id)) {
-    throw new Error("No such release.");
-  }
-  if (!filename) {
-    rollback.deleteRelease(channel_id, release_id);
-    throw new Error("Invalid or missing input.")
-  }
-
-  return (upload_type === "payloadFile"
-          ? `channels/${channel_id}/releases/${release_id}/payload/${filename}`
-          : `channels/${channel_id}/releases/${release_id}/${filename}`);
 }
 
-function getProposalUploadKey({ channel_id, syndicate_id, proposal_id, mime_type, upload_type, filename }) {
 
-  if (!syndicate_id || !proposal_id) {
-    return false;
+async function getProposalUploadKey({ channel_id, syndicate_id, time_created, mime_type, upload_type, filename }) {
+
+  filename = getFilename(filename, mime_type, upload_type);
+
+  const checks = [
+    syndicateHasChannel(syndicate_id, channel_id),
+    syndicateHasProposal(syndicate_id, time_created)
+  ];
+
+  try {
+    await Promise.all(checks);
+    return (upload_type === "payload"
+          ? `syndicates/${syndicate_id}/proposals/${time_created}/payload/${filename}`
+          : `syndicates/${syndicate_id}/proposals/${time_created}/${filename}`);
+  } catch(error) {
+    throw error;
   }
-
-  // Sanitizes the filename and asserts that the syndicate
-  // actually possesses both the channel and proposal in question.
-
-  filename = getFilename(mime_type, upload_type, filename);
-
-  if (!syndicateHasChannel(syndicate_id, channel_id) || !syndicateHasProposal(syndicate_id, proposal_id)) {
-    throw new Error("No such channel or proposal in syndicate.");
-  }
-  if (!filename) {
-    rollback.deleteProposal(syndicate_id, proposal_id);
-    throw new Error("Invalid or missing input.")
-  }
-
-  return (upload_type === "payloadFile"
-          ? `syndicates/${syndicate_id}/proposals/${proposal_id}/payload/${filename}`
-          : `syndicates/${syndicate_id}/proposals/${proposal_id}/${filename}`);
 }
 
-function getSyndicateUploadKey({ channel_id, syndicate_id, mime_type, upload_type, filename }) {
 
-  if (!syndicate_id) {
-    return false;
-  }
+async function getSyndicateUploadKey({ channel_id, syndicate_id, mime_type, upload_type, filename }) {
 
-  // Sanitizes the filename and asserts that the syndicate
-  // actually possesses the channel in question.
+  filename = getFilename(filename, mime_type, upload_type);
 
-  // TODO: Add rollback.
+  await Promise.all([
+    syndicateHasChannel(syndicate_id, channel_id, true),
+  ]);
 
-  filename = getFilename(mime_type, upload_type, filename);
+  console.log("returning\n\n\n\n\n\n", (upload_type === "payload"
+          ? `syndicates/${syndicate_id}/payload/${filename}`
+          : `syndicates/${syndicate_id}/${filename}`))
 
-  if (!syndicateHasChannel(syndicate_id, channel_id, true)) {
-    throw new Error("No such channel in syndicate.");
-  }
-  if (!filename) {
-    throw new Error("Invalid or missing input.")
-  }
-
-  return (upload_type === "payloadFile"
+  return (upload_type === "payload"
           ? `syndicates/${syndicate_id}/payload/${filename}`
           : `syndicates/${syndicate_id}/${filename}`);
 }
 
 
-function getChannelUploadKey({ channel_id, mime_type, upload_type, filename }) {
+async function getChannelUploadKey({ channel_id, mime_type, upload_type, filename }) {
 
-  // Sanitizes the filename. (No rollback for channels.)
+  filename = getFilename(filename, mime_type, upload_type);
 
-  filename = getFilename(mime_type, upload_type, filename);
-
-  if (!filename) {
-    throw new Error("Invalid or missing input.")
-  }
-
-  return (upload_type === "payloadFile"
+  return (upload_type === "payload"
           ? `channels/${channel_id}/payload/${filename}`
           : `channels/${channel_id}/${filename}`);
 }
 
 
-async function channelHasRelease(channel_id, release_id) {
+async function channelHasRelease(channel_id, time_created) {
+
   const params = {
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id },
+    TableName: process.env.DYNAMODB_TABLE_RELEASES,
+    KeyConditionExpression: "channel_id = :channel_id AND time_created = :time_created",
+    ExpressionAttributeValues: {
+      ":channel_id": channel_id,
+      ":time_created": time_created
+    }
   };
-  const result = await new Promise((resolve, reject) => {
-    DynamoDB.get(params, (error, data) => {
-      if (error || !data.Item) {
-        resolve(false);
-      } else if (data.Item.releases.values.indexOf(release_id < 0)) {
-        resolve(false);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-  return result;
+
+  const {
+    Items: releases
+  } = await DynamoDB.query(params).promise();
+
+  if (releases.length !== 1) {
+    throw new Error("![400] No such release.");
+  }
 }
 
 
-async function syndicateHasChannel(syndicate_id, channel_id, assertNewSyndicate=false) {
-
-  // If "assertNewSyndicate" is true, REJECT if the syndicate also has more than one
-  // member channel. (Brand new syndicates will only ever have one channel.)
+async function syndicateHasChannel(syndicate_id, channel_id, assertSoleMember=false) {
 
   const params = {
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-    Key: { syndicate_id },
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
   };
-  const result = await new Promise((resolve, reject) => {
-    DynamoDB.get(params, (error, data) => {
-      if (error || !data.Item) {
-        resolve(false);
-      } else if ((assertNewSyndicate && data.Item.channels.length > 1) || 
-                 data.Item.channels.values.indexOf(channel_id < 0)) {
-        resolve(false);
-      } else {
-        resolve(true);
-      }
-    });
-  });
-  return result;
+
+  const {
+    Items: memberships
+  } = await DynamoDB.query(params).promise();
+
+  if (assertSoleMember) {
+
+    if (memberships.length !== 1 || memberships[0].channel_id !== channel_id) {
+      throw new Error("![400] No such member channel or not sole member.");
+    }
+
+  } else {
+
+    const channels = memberships.map(({ channel_id }) => channel_id);
+    if (channels.indexOf(channel_id) < 0) {
+      throw new Error("![400] No such member channel.");
+    }
+  }
 }
 
 
-async function syndicateHasProposal(syndicate_id, proposal_id) {
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-    Key: { syndicate_id },
-  };
-  const { Item } = await DynamoDB.get(params).promise();
-  return (Item && Item.proposals.values.indexOf(proposal_id > -1));
-  
-  // const result = await new Promise((resolve, reject) => {
-  //   DynamoDB.get(params, (error, data) => {
-  //     if (error || !data.Item) {
-  //       resolve(false);
-  //     } else if (data.Item.proposals.values.indexOf(proposal_id < 0)) {
-  //       resolve(false);
-  //     } else {
-  //       resolve(true);
-  //     }
-  //   });
-  // });
-  // return result;
+function syndicateHasProposal (syndicate_id, time_created) {
+
+  return DynamoDB.get({
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS,
+    Key: { syndicate_id, time_created }
+  })
+  .promise()
+  .then(({ Item }) => !!Item);
 }

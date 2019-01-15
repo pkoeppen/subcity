@@ -51,7 +51,7 @@ module.exports.postprocess = (event, context, callback) => {
 
 async function processImageFile(key, callback) {
 
-  console.log(`[postprocess] Processing image file ${key}`);
+  console.log(`[S3] Processing image file ${key}`);
 
   try {
 
@@ -94,7 +94,7 @@ async function processImageFile(key, callback) {
 
 async function processPayloadFile(key, callback) {
 
-  console.log(`[postprocess] Processing payload file ${key}`);
+  console.log(`[S3] Processing payload file ${key}`);
 
   try {
 

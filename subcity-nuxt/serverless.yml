@@ -1,0 +1,33 @@
+service: subcity-nuxt
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  stage: ${opt:stage, "dev"}
+  region: us-east-1
+  environment: 
+    NODE_ENV: dev
+
+functions:
+  nuxt:
+    handler: index.nuxt
+    events:
+      - http: ANY /
+      - http: ANY /{proxy+}
+
+plugins:
+  - serverless-apigw-binary
+  - serverless-domain-manager
+  - serverless-offline
+
+custom:
+  apigwBinary:
+    types:
+      - '*/*'
+  customDomain:
+    domainName: sub.city
+    basePath: ''
+    stage: ${opt:stage, "dev"}
+    createRoute53Record: true
+    # endpointType: 'regional'
+    # if the ACM certificate is created in a region except for `'us-east-1'` you need `endpointType: 'regional'`

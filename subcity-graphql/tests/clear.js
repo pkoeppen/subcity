@@ -23,7 +23,8 @@ module.exports = {
   slugs:       deleteSlugsTable,
   stripe:      clearStripe,
   subscribers: deleteSubscribersTable,
-  syndicates:  deleteSyndicatesTable
+  syndicates:  deleteSyndicatesTable,
+  transfers:   deleteTransfersTable
 };
 
 
@@ -57,7 +58,7 @@ function clearDynamoDB() {
     deleteChannelsTable(),
     deleteInvitationsTable(),
     deleteMembershipsTable(),
-    deletePaymentsTable(),
+    deleteTransfersTable(),
     deleteProposalsTable(),
     deleteReleasesTable(),
     deleteSlugsTable(),
@@ -258,21 +259,21 @@ function deleteMembershipsTable() {
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id, syndicate_id }) => {
-      console.log(`[DynamoDB:MEMBERSHIPS]Deleting ${channel_id}:${syndicate_id}`);
+      console.log(`[DynamoDB:MEMBERSHIPS] Deleting ${channel_id}:${syndicate_id}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id, syndicate_id }})).promise();
     });
   });
 }
 
 
-function deletePaymentsTable() {
+function deleteTransfersTable() {
   const params = {
-    TableName: process.env.DYNAMODB_TABLE_PAYMENTS
+    TableName: process.env.DYNAMODB_TABLE_TRANSFERS
   };
   return DynamoDB.scan(params).promise()
   .then(({ Items }) => {
     Items.map(({ channel_id, time_created }) => {
-      console.log(`[DynamoDB:PAYMENTS]Deleting ${channel_id}:${time_created}`);
+      console.log(`[DynamoDB:TRANSFERS] Deleting ${channel_id}:${time_created}`);
       return DynamoDB.delete(Object.assign(params, { Key: { channel_id, time_created }})).promise();
     });
   });

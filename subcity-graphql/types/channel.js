@@ -15,6 +15,11 @@ const {
 } = require("./release");
 
 const {
+  SubscriberType,
+  SubscriptionType
+} = require("./subscriber");
+
+const {
   MarkdownType,
   TiersInputType,
   TiersType,
@@ -23,19 +28,31 @@ const {
 } = require("./misc");
 
 const {
-
-    getReleaseBySlug,
-    getReleasesByIdArray,
-
-    getSyndicateBySlug,
-    getSyndicatesByIdArray,
-    getInvitationsByIdArray
-
-  // subscriber: {
-  //   getSubscribersByChannelId
-  // }
-
+  getReleasesByChannelID,
+  getSubscribersByChannelID,
+  getSubscriptionsByChannelID,
+  getSyndicatesByChannelID,
 } = require("../resolvers");
+
+
+const SyndicateType = new GraphQLObjectType({
+  name: "_Syndicate",
+  fields: () => ({
+
+    description:  { type: new GraphQLNonNull(MarkdownType)   },
+    links:        { type: new GraphQLNonNull(LinksType)      },
+    payload:      { type: GraphQLString                      },
+    plan_id:      { type: new GraphQLNonNull(GraphQLString)  },
+    slug:         { type: new GraphQLNonNull(GraphQLString)  },
+    syndicate_id: { type: new GraphQLNonNull(GraphQLID)      },
+    tiers:        { type: new GraphQLNonNull(TiersType)      },
+    time_created: { type: new GraphQLNonNull(GraphQLFloat)   },
+    time_updated: { type: new GraphQLNonNull(GraphQLFloat)   },
+    title:        { type: GraphQLString                      },
+    unlisted:     { type: new GraphQLNonNull(GraphQLBoolean) },
+
+  })
+});
 
 
 const ChannelType = new GraphQLObjectType({
@@ -45,71 +62,65 @@ const ChannelType = new GraphQLObjectType({
     channel_id:   { type: new GraphQLNonNull(GraphQLID)      },
     description:  { type: new GraphQLNonNull(MarkdownType)   },
     funding:      { type: new GraphQLNonNull(GraphQLString)  },
+    invites:      { type: new GraphQLList(GraphQLString)     },
     links:        { type: new GraphQLNonNull(LinksType)      },
-    overview:     { type: MarkdownType                       },
     payload:      { type: GraphQLString                      },
     plan_id:      { type: new GraphQLNonNull(GraphQLString)  },
-    slug:         { type: GraphQLString                      },
-    //subscription: { type: SubscriptionType },
+    slug:         { type: new GraphQLNonNull(GraphQLString)  },
+    subscription: { type: SubscriptionType                   },
     tiers:        { type: new GraphQLNonNull(TiersType)      },
     time_created: { type: new GraphQLNonNull(GraphQLFloat)   },
     time_updated: { type: new GraphQLNonNull(GraphQLFloat)   },
-    title:        { type: new GraphQLNonNull(GraphQLString)  },
+    title:        { type: GraphQLString                      },
     unlisted:     { type: new GraphQLNonNull(GraphQLBoolean) },
 
+    releases: {
+      type: new GraphQLList(ReleaseType),
+      resolve: (root, args, ctx, ast) => {
 
-    // // Edge nodes.
+        const {
+          channel_id
+        } = root;
 
-    // release: {
-    //   type: new GraphQLNonNull(ReleaseType),
-    //   args: {
-    //     slug: {
-    //       name: "slug",
-    //       type: new GraphQLNonNull(GraphQLString)
-    //     },
-    //     subscriber_id: {
-    //       name: "subscriber_id",
-    //       type: GraphQLID
-    //     }
-    //   },
-    //   resolve: getReleaseBySlug
-    // },
-
-    // releases: {
-    //   type: new GraphQLList(require("./release").ReleaseType),
-    //   resolve: getReleasesByIdArray
-    // },
-
-    // syndicate: {
-    //   type: require("./syndicate").SyndicateType,
-    //   args: {
-    //     slug: {
-    //       name: "slug",
-    //       type: new GraphQLNonNull(GraphQLString)
-    //     },
-    //     settings: {
-    //       name: "settings",
-    //       type: new GraphQLNonNull(GraphQLBoolean)
-    //     }
-    //   },
-    //   resolve: getSyndicateBySlug
-    // },
-
-    // syndicates: {
-    //   type: new GraphQLList(require("./syndicate").SyndicateType),
-    //   resolve: getSyndicatesByIdArray
-    // },
-
-    // invitations: {
-    //   type: new GraphQLList(require("./syndicate").SyndicateType),
-    //   resolve: getInvitationsByIdArray
-    // },
+        return getReleasesByChannelID(channel_id);
+      }
+    },
 
     // subscribers: {
-    //   type: { type: new GraphQLList(GraphQLID) },
-    //   resolve: getSubscribersByChannelId
-    // }
+    //   type: new GraphQLList(SubscriberType),
+    //   resolve: (root, args, ctx, ast) => {
 
+    //     const {
+    //       channel_id
+    //     } = ctx;
+
+    //     return getSubscribersByChannelID(channel_id);
+    //   }
+    // },
+
+    subscriptions: {
+      type: new GraphQLList(SubscriptionType),
+      resolve: (root, args, ctx, ast) => {
+
+        const {
+          channel_id
+        } = ctx;
+
+        return getSubscriptionsByChannelID(channel_id);
+      }
+    },
+
+    syndicates: {
+      type: new GraphQLList(SyndicateType),
+      resolve: (root, args, ctx, ast) => {
+
+        const {
+          channel_id
+        } = root;
+
+        return getSyndicatesByChannelID(channel_id);
+      }
+    },
   })
 });
 
@@ -121,12 +132,23 @@ const ChannelInputType = new GraphQLInputObjectType({
     description: { type: GraphQLString  },
     funding:     { type: GraphQLString  },
     links:       { type: LinksInputType },
-    overview:    { type: GraphQLString  },
     payload:     { type: GraphQLString  },
     slug:        { type: GraphQLString  },
     tiers:       { type: TiersInputType },
     title:       { type: GraphQLString  },
     unlisted:    { type: GraphQLBoolean }
+
+  })
+});
+
+
+const PasswordInputType = new GraphQLInputObjectType({
+  name: "PasswordInput",
+  fields: () => ({
+
+    email: { type: new GraphQLNonNull(GraphQLString) },
+    old_password: { type: new GraphQLNonNull(GraphQLString) },
+    new_password: { type: new GraphQLNonNull(GraphQLString) },
 
   })
 });
@@ -144,8 +166,8 @@ const PayoutSettingsType = new GraphQLObjectType({
     first_name:           { type: new GraphQLNonNull(GraphQLString) },
     last_name:            { type: new GraphQLNonNull(GraphQLString) },
     line1:                { type: new GraphQLNonNull(GraphQLString) },
-    payout_anchor:        { type: GraphQLString                     },
-    payout_interval:      { type: new GraphQLNonNull(GraphQLString) },
+    // payout_anchor:     { type: GraphQLString                     },
+    // payout_interval:   { type: new GraphQLNonNull(GraphQLString) },
     postal_code:          { type: new GraphQLNonNull(GraphQLString) },
     routing_number:       { type: new GraphQLNonNull(GraphQLString) },
     state:                { type: new GraphQLNonNull(GraphQLString) }
@@ -166,13 +188,12 @@ const PayoutSettingsInputType = new GraphQLInputObjectType({
     first_name:         { type: new GraphQLNonNull(GraphQLString) },
     last_name:          { type: new GraphQLNonNull(GraphQLString) },
     line1:              { type: new GraphQLNonNull(GraphQLString) },
+    // payout_interval: { type: new GraphQLNonNull(GraphQLString) },
+    // payout_anchor:   { type: GraphQLString                     },
     personal_id_number: { type: GraphQLString                     },
     postal_code:        { type: new GraphQLNonNull(GraphQLString) },
     routing_number:     { type: GraphQLString                     },
-    state:              { type: new GraphQLNonNull(GraphQLString) }
-
-    // payout_interval: { type: new GraphQLNonNull(GraphQLString) },
-    // payout_anchor:   { type: GraphQLString }
+    state:              { type: new GraphQLNonNull(GraphQLString) },
 
   })
 });
@@ -191,11 +212,10 @@ const InitializeChannelInputType = new GraphQLInputObjectType({
     line1:              { type: new GraphQLNonNull(GraphQLString) },
     password:           { type: new GraphQLNonNull(GraphQLString) },
     personal_id_number: { type: new GraphQLNonNull(GraphQLString) },
-    pin:                { type: new GraphQLNonNull(GraphQLInt)    },
     postal_code:        { type: new GraphQLNonNull(GraphQLString) },
     routing_number:     { type: new GraphQLNonNull(GraphQLString) },
     state:              { type: new GraphQLNonNull(GraphQLString) },
-    token_id:           { type: new GraphQLNonNull(GraphQLString) }
+    offer_id:           { type: new GraphQLNonNull(GraphQLString) }
 
   })
 });
@@ -204,6 +224,7 @@ const InitializeChannelInputType = new GraphQLInputObjectType({
 module.exports = {
   ChannelType,
   ChannelInputType,
+  PasswordInputType,
   PayoutSettingsType,
   PayoutSettingsInputType,
   InitializeChannelInputType

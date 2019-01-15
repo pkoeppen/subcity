@@ -1,27 +1,29 @@
 const {
+  AuthQuery
+} = require("./auth");
+const {
   ChannelQuery,
   ChannelMutation,
-  TokenQuery
+  OfferQuery
 } = require("./channel");
-
 const {
   ProposalMutation
 } = require("./proposal");
-
 const {
-  ReleaseMutation
+  ReleaseMutation,
+  ReleaseQuery,
 } = require("./release");
-
+const {
+  SharedQuery,
+} = require("./shared");
 const {
   SubscriberQuery,
   SubscriberMutation
 } = require("./subscriber");
-
 const {
   SyndicateQuery,
   SyndicateMutation
 } = require("./syndicate");
-
 const {
   UploadQuery
 } = require("./upload");
@@ -31,26 +33,43 @@ module.exports = {
 
   queries: {
 
+    // SharedQuery
+
+    resolveSlug: SharedQuery.resolveSlug,
+
+    // AuthQuery
+
+    getToken: AuthQuery.getToken,
+
     // ChannelQuery
     
-    getChannelById:     ChannelQuery.getChannelById,
-    getChannelsByRange: ChannelQuery.getChannelsByRange,
-    getChannelBySlug:   ChannelQuery.getChannelBySlug,
-    getPayoutSettings:  ChannelQuery.getPayoutSettings,
+    getAllChannels: ChannelQuery.getAllChannels,
+    getAllSubscriptionsByChannelID: ChannelQuery.getAllSubscriptionsByChannelID,
+    getChannelByID: ChannelQuery.getChannelByID,
+    getChannelBySlug: ChannelQuery.getChannelBySlug,
+    getInvitationsByChannelID: ChannelQuery.getInvitationsByChannelID,
+    getPayoutSettings: ChannelQuery.getPayoutSettings,
+
+    // ReleaseQuery
+
+    getReleasesByChannelID: ReleaseQuery.getReleasesByChannelID,
 
     // SubscriberQuery
 
-    getSubscriber: SubscriberQuery.getSubscriberById,
-    // getSubscriberPaymentSettings
+    getSubscriptionsBySubscriberID: SubscriberQuery.getSubscriptionsBySubscriberID,
+    getSubscriberByID: SubscriberQuery.getSubscriberByID,
+    getSubscription: SubscriberQuery.getSubscription,
+    getSources: SubscriberQuery.getSources,
 
     // SyndicateQuery
 
-    getSyndicateBySlug:   SyndicateQuery.getSyndicateBySlug,
-    getSyndicatesByRange: SyndicateQuery.getSyndicatesByRange,
+    getAllSyndicates: SyndicateQuery.getAllSyndicates,
+    getSyndicateBySlug: SyndicateQuery.getSyndicateBySlug,
+    getSyndicatesByChannelID: SyndicateQuery.getSyndicatesByChannelID,
 
-    // TokenQuery
+    // OfferQuery
 
-    assertTokenExists: TokenQuery.assertTokenExists,
+    assertOfferExists: OfferQuery.assertOfferExists,
 
     // UploadQuery
 
@@ -61,17 +80,27 @@ module.exports = {
 
     // ChannelMutation
 
-    initializeChannel:    ChannelMutation.initializeChannel,
-    deleteChannel:        ChannelMutation.deleteChannel,
-    updateChannel:        ChannelMutation.updateChannel,
+    initializeChannel: ChannelMutation.initializeChannel,
+    deleteChannel: ChannelMutation.deleteChannel,
+    sendEmailInvite: ChannelMutation.sendEmailInvite,
+    updateChannel: ChannelMutation.updateChannel,
+    updateChannelEmail: ChannelMutation.updateChannelEmail,
+    updateChannelPassword: ChannelMutation.updateChannelPassword,
     updatePayoutSettings: ChannelMutation.updatePayoutSettings,
 
     // SubscriberMutation
 
     initializeSubscriber: SubscriberMutation.initializeSubscriber,
-    createSubscription:   SubscriberMutation.createSubscription,
-    deleteSubscription:   SubscriberMutation.deleteSubscription,
-    updateSubscriber:     SubscriberMutation.updateSubscriber,
+    createSource: SubscriberMutation.createSource,
+    createSubscription: SubscriberMutation.createSubscription,
+    deleteAllSubscriptions: SubscriberMutation.deleteAllSubscriptions,
+    deleteSource: SubscriberMutation.deleteSource,
+    deleteSubscriber: SubscriberMutation.deleteSubscriber,
+    deleteSubscription: SubscriberMutation.deleteSubscription,
+    updateSubscriber: SubscriberMutation.updateSubscriber,
+    updateSubscriberEmail: SubscriberMutation.updateSubscriberEmail,
+    updateSubscriberPassword: SubscriberMutation.updateSubscriberPassword,
+    setDefaultSource: SubscriberMutation.setDefaultSource,
 
     // ReleaseMutation
 
@@ -82,12 +111,12 @@ module.exports = {
     // SyndicateMutation
 
     answerInvitation: ChannelMutation.answerInvitation, // TODO: Move this to /syndicate/mutation.js
-    createSyndicate:  SyndicateMutation.createSyndicate,
-    leaveSyndicate:   SyndicateMutation.leaveSyndicate,
+    createSyndicate: SyndicateMutation.createSyndicate,
+    leaveSyndicate: SyndicateMutation.leaveSyndicate,
 
     // ProposalMutation
 
     createProposal: ProposalMutation.createProposal,
-    castVote:       ProposalMutation.castVote
+    castVote: ProposalMutation.castVote
   }
 };

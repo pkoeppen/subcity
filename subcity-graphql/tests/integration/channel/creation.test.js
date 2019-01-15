@@ -202,16 +202,19 @@ describe("Channel creation", function() {
       const expected = {
         description: null,
         links: {
-          _1: null,
-          _2: null,
-          _3: null
+          discord: null,
+          facebook: null,
+          instagram: null,
+          twitch: null,
+          twitter: null,
+          youtube: null,
         },
         overview: null,
         payload: null,
         tiers: {
           _1: {
             active: true,
-            alias: null,
+            title: null,
             description: {
               raw: null,
               rendered: null
@@ -220,7 +223,7 @@ describe("Channel creation", function() {
           },
           _2: {
             active: false,
-            alias: null,
+            title: null,
             description: {
               raw: null,
               rendered: null
@@ -229,7 +232,7 @@ describe("Channel creation", function() {
           },
           _3: {
             active: false,
-            alias: null,
+            title: null,
             description: {
               raw: null,
               rendered: null

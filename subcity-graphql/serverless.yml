@@ -209,85 +209,6 @@ resources:
         BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_MEMBERSHIPS}"
 
-    ### MessagesTable
-
-    # MessagesTable:
-    #   Type: AWS::DynamoDB::Table
-    #   Properties:
-
-    #     AttributeDefinitions:
-    #     - AttributeName: sender
-    #       AttributeType: S
-    #     - AttributeName: receiver
-    #       AttributeType: S
-    #     - AttributeName: time_created
-    #       AttributeType: N
-    #     # - AttributeName: content
-    #     #   AttributeType: S
-    #     # - AttributeName: type
-    #     #   AttributeType: S
-
-    #     KeySchema:
-    #     - AttributeName: sender
-    #       KeyType: HASH
-    #     - AttributeName: time_created
-    #       KeyType: RANGE
-
-    #     GlobalSecondaryIndexes:
-
-    #       # GSI to query messages by receiver_id.
-
-    #     - IndexName: "${self:provider.environment.DYNAMODB_TABLE_MESSAGES}-GSI"
-    #       KeySchema:
-    #       - AttributeName: receiver
-    #         KeyType: HASH
-    #       - AttributeName: sender
-    #         KeyType: RANGE
-    #       Projection:
-    #         NonKeyAttributes:
-    #         - time_created
-    #         # - content
-    #         # - type
-    #         ProjectionType: INCLUDE
-
-    #     TableName: "${self:provider.environment.DYNAMODB_TABLE_MESSAGES}"
-
-    ### PaymentsTable
-
-    PaymentsTable:
-      Type: AWS::DynamoDB::Table
-      Properties:
-
-        AttributeDefinitions:
-        - AttributeName: channel_id
-          AttributeType: S
-        - AttributeName: syndicate_id
-          AttributeType: S
-        - AttributeName: time_created
-          AttributeType: N
-
-        KeySchema:
-        - AttributeName: channel_id
-          KeyType: HASH
-        - AttributeName: time_created
-          KeyType: RANGE
-
-        GlobalSecondaryIndexes:
-
-          # GSI to query payments by syndicate_id (if it exists).
-
-        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_PAYMENTS}-GSI"
-          KeySchema:
-          - AttributeName: syndicate_id
-            KeyType: HASH
-          - AttributeName: time_created
-            KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-        BillingMode: PAY_PER_REQUEST
-        TableName: "${self:provider.environment.DYNAMODB_TABLE_PAYMENTS}"
-
     ### ProposalsTable
 
     ProposalsTable:
@@ -469,22 +390,58 @@ resources:
         BillingMode: PAY_PER_REQUEST
         TableName: "${self:provider.environment.DYNAMODB_TABLE_SYNDICATES}"
 
-    ### TokensTable
+    ### OffersTable
 
-    TokensTable:
+    OffersTable:
       Type: AWS::DynamoDB::Table
       Properties:
 
         AttributeDefinitions:
-        - AttributeName: token_id
+        - AttributeName: offer_id
           AttributeType: S
 
         KeySchema:
-        - AttributeName: token_id
+        - AttributeName: offer_id
           KeyType: HASH
 
         BillingMode: PAY_PER_REQUEST
-        TableName: "${self:provider.environment.DYNAMODB_TABLE_TOKENS}"
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_OFFERS}"
+
+    ### TransfersTable
+
+    TransfersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+
+        AttributeDefinitions:
+        - AttributeName: channel_id
+          AttributeType: S
+        - AttributeName: syndicate_id
+          AttributeType: S
+        - AttributeName: time_created
+          AttributeType: N
+
+        KeySchema:
+        - AttributeName: channel_id
+          KeyType: HASH
+        - AttributeName: time_created
+          KeyType: RANGE
+
+        GlobalSecondaryIndexes:
+
+          # GSI to query transfers by syndicate_id (if it exists).
+
+        - IndexName: "${self:provider.environment.DYNAMODB_TABLE_TRANSFERS}-GSI"
+          KeySchema:
+          - AttributeName: syndicate_id
+            KeyType: HASH
+          - AttributeName: time_created
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        BillingMode: PAY_PER_REQUEST
+        TableName: "${self:provider.environment.DYNAMODB_TABLE_TRANSFERS}"
 
     # This response is needed for custom authorizer failures CORS support.
 

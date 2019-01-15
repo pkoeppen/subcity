@@ -1,6 +1,7 @@
 const {
   GraphQLBoolean,
   GraphQLFloat,
+  GraphQLList,
   GraphQLNonNull
 } = require("graphql");
 
@@ -12,8 +13,26 @@ const {
 const {
   createRelease,
   deleteRelease,
+  getReleasesByChannelID,
   updateRelease
 } = require("../resolvers");
+
+
+const ReleaseQuery = {
+
+  getReleasesByChannelID: {
+
+    type: new GraphQLList(ReleaseType),
+    resolve: (root, args, ctx, ast) => {
+
+      const {
+        channel_id
+      } = ctx;
+
+      return getReleasesByChannelID(channel_id);
+    }
+  },
+};
 
 
 const ReleaseMutation = {
@@ -91,10 +110,10 @@ const ReleaseMutation = {
       return updateRelease(channel_id, time_created, data);
     }
   }
-
 };
 
 
 module.exports = {
-  ReleaseMutation
+  ReleaseMutation,
+  ReleaseQuery,
 };

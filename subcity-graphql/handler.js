@@ -1,153 +1,167 @@
-const schema = require("./schema/");
 const { graphql, parse } = require("graphql");
-const { getPrincipalID, depthLimit } = require("./shared");
-
-
-////////////////////////////////////////////////////
-
-
-const handlerPublic = (event, context, callback) => {
-
-  try {
-    const { query, vars } = JSON.parse(event.body);
-    graphql(schema.public, query, null, event.requestContext.identity, vars)
-    .then(result => {
-
-      if (result.errors) {
-        throw result.errors[0];
-      }
-
-      console.log(`[public][200] ${Object.keys(result.data)[0]}`);
-      return callback(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*" // change
-        },
-        statusCode: 200,
-        body: JSON.stringify(result)
-      });
-
-    })
-    .catch(error => {
-      console.error(`[public][400] Error: ${error.stack}`);
-      return callback(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*" // change
-        },
-        statusCode: 400,
-        body: error.message
-      });
-    });
-  }
-
-  catch(error) {
-    console.error(`[public][500] Error: ${error.stack}`);
-    callback(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*" // change
-      },
-      statusCode: 500,
-      body: "Something went wrong."
-    });
-  }
-};
-
-
-////////////////////////////////////////////////////
-
-
-const handlerPrivate = (event, context, callback) => {
-
-  try {
-    const { query, vars, ctx } = sanitizeQuery(event);
-    graphql(schema.private, query, null, ctx, vars)
-    .then(result => {
-
-      if (result.errors) {
-        throw result.errors[0];
-      }
-
-      console.log(`[private][200] ${Object.keys(result.data)[0]}`);
-      return callback(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*" // change
-        },
-        statusCode: 200,
-        body: JSON.stringify(result)
-      });
-
-    })
-    .catch(error => {
-      console.error(`[private][400] Error: ${error.stack}`);
-      callback(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*" // change
-        },
-        statusCode: 400,
-        body: error.message
-      });
-    });
-  }
-
-  catch(error) {
-    console.error(`[private][500] Error: ${error.stack}`);
-    callback(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*" // change
-      },
-      statusCode: 500,
-      body: "Something went wrong."
-    });
-  }
-};
-
-
-////////////////////////////////////////////////////
+const schema = require("./schema");
+const { depthLimit } = require("./shared");
 
 
 module.exports = {
-  public:  handlerPublic,
-  private: handlerPrivate
+  private: handlerPrivate,
+  public: handlerPublic,
 };
 
 
-////////////////////////////////////////////////////
+const headers = {
+  "Access-Control-Allow-Origin": "*"
+};
+
+const ERROR_REGEX = /(?:\[)([0-9]{3})(?:\]\s)(.*)/g;
 
 
-function getRole(event) {
-  return event.requestContext.authorizer.role;
+function handlerPublic (event, context, callback) {
+
+  const {
+    query,
+    vars,
+  } = JSON.parse(event.body);
+
+  const ctx = {
+    ip_address: event.requestContext.identity.sourceIp
+  };
+
+  // Disallow query depth over five levels.
+
+  try {
+    depthLimit(10)(parse(query));
+  } catch (error) {
+    console.log(`[depthLimit] IP: ${ctx.ip_address}`);
+    return callback(null, {
+      headers,
+      statusCode: 400,
+      body: "Query depth limit exceeded."
+    });
+  }
+
+  graphql(schema, query, null, ctx, vars)
+  .then(({ data, errors }) => {
+
+    if (errors) {
+      const error = errors[0];
+
+      if (error.message.startsWith("!")) {
+
+        const [
+          match,
+          statusCode,
+          message
+        ] = ERROR_REGEX.exec(error.message);
+
+        return callback(null, {
+          headers,
+          statusCode,
+          body: message
+        });
+
+      } else {
+        console.log(`[handlerPublic] Error: ${error.message}`);
+        return callback(null, {
+          headers,
+          statusCode: 500,
+          body: "An unknown error occurred."
+        });
+      }
+
+    } else {
+      return callback(null, {
+        headers,
+        statusCode: 200,
+        body: JSON.stringify(data)
+      });
+    }
+  })
+  .catch(error => {
+    console.log(`[handlerPublic] Error: ${error.message}`);
+    return callback(null, {
+      headers,
+      statusCode: 500,
+      body: "An unknown error occurred."
+    });
+  });
 }
 
 
-function sanitizeQuery(event) {
+function handlerPrivate (event, context, callback) {
 
-  // First, we extract the user's hashed ID
-  // and role from the authorization event.
+  const {
+    query,
+    vars,
+  } = JSON.parse(event.body);
 
-  const ctx  = { private: true };
-  const id   = getPrincipalID(event);
-  const role = getRole(event);
-  const { query, vars } = JSON.parse(event.body);
+  const {
+    principalId: id,
+    role,
+  } = event.requestContext.authorizer;
 
-  // Purge all keys that may have been adulterated.
+  const ctx = {
+    ip_address: event.requestContext.identity.sourceIp,
+    [`${role}_id`]: id.replace(/^auth0\|(acct|cus)_/g, ""),
+  };
 
-  delete vars.channel_id;
-  delete vars.subscriber_id;
-  delete (vars.data || {}).channel_id;
-  delete (vars.data || {}).subscriber_id;
+  // Disallow query depth over five levels.
 
-  // Next, we inject said ID into the variables dictionary, so that
-  // there can be no opportunity for self-injection or other tomfoolery.
+  try {
+    depthLimit(10)(parse(query));
+  } catch (error) {
+    console.log(error.stack || error)
+    console.log(`[depthLimit] IP: ${ctx.ip_address}, ID: ${id}`);
+    return callback(null, {
+      headers,
+      statusCode: 400,
+      body: "Query depth limit exceeded."
+    });
+  }
 
-  ctx[`${role}_id`]  = id;
-  vars[`${role}_id`] = id;                 // for queries
-  (vars["data"] || {})[`${role}_id`] = id; // for mutations
+  graphql(schema, query, null, ctx, vars)
+  .then(({ data, errors }) => {
 
-  // Let's run a function that will shit its pants if
-  // the query goes over a pre-determined depth limit.
+    if (errors) {
+      const error = errors[0];
 
-  depthLimit(5)(parse(query));
+      if (error.message.startsWith("!")) {
 
-  // Finally, return the clean query.
+        const [
+          match,
+          statusCode,
+          message
+        ] = ERROR_REGEX.exec(error.message);
 
-  return { query, vars, ctx };
+        return callback(null, {
+          headers,
+          statusCode,
+          body: message
+        });
+        
+      } else {
+        console.log(`[handlerPrivate] Error: ${error.message}${error.stack}`);
+        return callback(null, {
+          headers,
+          statusCode: 500,
+          body: "An unknown error occurred."
+        });
+      }
+
+    } else {
+      return callback(null, {
+        headers,
+        statusCode: 200,
+        body: JSON.stringify(data)
+      });
+    }
+  })
+  .catch(error => {
+    console.log(`[handlerPrivate] Error: ${error.message}`);
+    return callback(null, {
+      headers,
+      statusCode: 500,
+      body: "An unknown error occurred."
+    });
+  });
 }

@@ -9,6 +9,7 @@ const {
   createStripeAccountObject,
   createStripePlan,
   deleteStripePlan,
+  deleteStripeSubscription,
   deactivateSubscriptionsByProductID,
   reactivateSubscriptionsByProductID,
   deleteAuth0User,
@@ -20,6 +21,7 @@ const {
   purgeByProductID,
   queryAll,
   sanitize,
+  scanAll,
   updateStripeAccount
 } = require("../../shared");
 
@@ -91,8 +93,8 @@ function deleteChannel (channel_id) {
 
     // DynamoDB
 
+    deleteProposalsByChannelID(channel_id),
     deleteMembershipsByChannelID(channel_id),
-    deleteMessagesByChannelID(channel_id),
     deleteSlugsByChannelID(channel_id),
     deleteSubscriptionsByChannelID(channel_id),
     deleteChannelByChannelID(channel_id),
@@ -305,7 +307,7 @@ function addChannelToSyndicate (channel_id, syndicate_id) {
 
   const _0 = createMembership(channel_id, syndicate_id);
 
-  // Delete channel subscriptions if subscriber is already
+  // Delete channel subscription if subscriber is already
   // subscribed to the syndicate the channel is joining.
 
   const _1 = DynamoDB.query({
@@ -343,7 +345,6 @@ function addChannelToSyndicate (channel_id, syndicate_id) {
 
         return deleteSubscription(subscriber_id, subscription_id);
       }
-
     }));
   });
 
@@ -519,8 +520,40 @@ async function deleteMembershipsByChannelID (channel_id) {
 }
 
 
-function deleteMessagesByChannelID (channel_id) {
-  
+async function deleteProposalsByChannelID (channel_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_PROPOSALS
+  };
+
+  const proposals = (await scanAll(params)).filter(proposal => {
+
+    const {
+      channel_id: _channel_id
+    } = proposal;
+
+    return (_channel_id === channel_id);
+  });
+
+  console.log(`[DynamoDB:PROPOSALS] Deleting all proposals referencing channel ${channel_id}`);
+  const chunked = chunk(proposals, 25).map(chunk => {
+    const requests = chunk.map(({ syndicate_id, time_created }) => ({
+      DeleteRequest: {
+        Key: {
+          syndicate_id,
+          time_created
+        }
+      }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_PROPOSALS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
+  });
+
+  return Promise.all(chunked);
 }
 
 
@@ -593,7 +626,7 @@ function deleteSubscription (subscriber_id, subscription_id) {
     }
   }).promise();
 
-  const _1 = deleteStripeSubscription(subscription_id);
+  const _1 = deleteStripeSubscription(`sub_${subscription_id}`);
 
   return Promise.all([_0,_1]);
 }
@@ -614,11 +647,11 @@ async function deleteSubscriptionsByChannelID (channel_id) {
 
   console.log(`[DynamoDB:SUBSCRIPTIONS] Deleting all subscriptions for channel ${channel_id}`);
   const chunked = chunk(subscriptions, 25).map(chunk => {
-    const requests = chunk.map(({ subscriber_id }) => ({
+    const requests = chunk.map(({ subscriber_id, subscription_id }) => ({
       DeleteRequest: {
         Key: {
-          channel_id,
-          subscriber_id
+          subscriber_id,
+          subscription_id
         }
       }
     }));

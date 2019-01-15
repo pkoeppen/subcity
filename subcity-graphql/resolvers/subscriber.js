@@ -1,327 +1,450 @@
-const stripe = require("stripe")(process.env.STRIPE_KEY_PRIVATE);
+const chunk = require("lodash/chunk");
+const intersectionBy = require("lodash/intersectionBy");
+
 const {
-  curateSets,
-  DynamoDB
-} = require("../../shared");
-const {
-  getSyndicateById
-} = require("./syndicate");
+  buildQuery,
+  createAuth0User,
+  createStripeCustomer,
+  createStripeSource,
+  createStripeSubscription,
+  deleteAuth0User,
+  deleteStripeCustomer,
+  deleteStripeSource,
+  deleteStripeSubscription,
+  DynamoDB,
+  updateAuth0Email,
+  updateAuth0Password,
+  queryAll,
+  sanitize,
+  setDefaultStripeSource
+} = require("../shared");
 
 
-///////////////////////////////////////////////////
-///////////////////// QUERIES /////////////////////
-///////////////////////////////////////////////////
+module.exports = {
+  createSource,
+  createSubscription,
+  deleteAllSubscriptions,
+  deleteSource,
+  deleteSubscription,
+  deleteSubscriber,
+  initializeSubscriber,
+  setDefaultSource,
+  updateSubscriber,
+  updateSubscriberEmail,
+  updateSubscriberPassword,
+  writeSubscriberUpdates
+};
 
 
-const getSubscriberById = (root, args) => {
+////////////////////////////////////////////////////////////
+//////////////////////// FUNCTIONS /////////////////////////
+////////////////////////////////////////////////////////////
 
-  const { subscriber_id } = args;
 
-  // Always private, called from the subscriber's settings dashboard.
+function createSource (subscriber_id, token) {
+
+  return createStripeSource(`cus_${subscriber_id}`, token)
+  .then(() => true);
+}
+
+
+function createSubscription (subscriber_id, data) {
+
+  data = sanitize(data);
+
+  const {
+    channel_id,
+    extra,
+    syndicate_id,
+    tier
+  } = data;
+
+  if (channel_id) {
+    return subscribeToChannel(subscriber_id, channel_id, tier, extra);
+
+  } else if (syndicate_id) {
+    return subscribeToSyndicate(subscriber_id, syndicate_id, tier, extra);
+
+  } else {
+    throw new Error("![400] Channel or syndicate ID missing.");
+  }
+}
+
+
+function deleteAllSubscriptions (subscriber_id) {
+
+  return deleteSubscriptionsBySubscriberID(subscriber_id)
+  .then(() => true);
+}
+
+
+function deleteSource (subscriber_id, source_id) {
+
+  return deleteStripeSource(`cus_${subscriber_id}`, source_id)
+  .then(() => true);
+}
+
+
+function deleteSubscriber (subscriber_id) {
+
+  if (!subscriber_id) { return; }
+
+  const tasks = [
+
+    // Stripe
+
+    deleteStripeCustomer(`cus_${subscriber_id}`),
+
+    // Auth0
+
+    deleteAuth0User(`auth0|cus_${subscriber_id}`),
+
+    // DynamoDB
+
+    deleteMessagesBySubscriberID(subscriber_id),
+    deleteSubscriptionsBySubscriberID(subscriber_id),
+    deleteSubscriberBySubscriberID(subscriber_id),
+  ];
+
+  return Promise.all(tasks)
+  .then(() => true);
+}
+
+
+async function deleteSubscription (subscriber_id, subscription_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    Key: {
+      subscriber_id,
+      subscription_id
+    }
+  };
+
+  // Wait for Stripe deletion to succeed.
+
+  await deleteStripeSubscription(`sub_${subscription_id}`);
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Deleting subscription ${subscription_id}`);
+  return DynamoDB.delete(params).promise()
+  .then(() => true);
+}
+
+
+async function initializeSubscriber (data) {
+
+  var subscriber_id;
+
+  try {
+
+    const {
+      id: stripe_id
+    } = await createStripeCustomer({ source: data.token_id });
+    subscriber_id = stripe_id.replace(/^cus_/g, "");
+
+    // Create the Auth0 user and DynamoDB subscriber object.
+
+    const seed = {
+      email: data.email,
+      subscriber_id
+    };
+    
+    await Promise.all([
+      createSubscriber(seed),
+      createAuth0User(Object.assign({ user_id: stripe_id, role: "subscriber" }, data))
+    ]);
+
+    return { subscriber_id };
+
+  } catch (error) {
+
+    // Rollback.
+
+    deleteSubscriber(subscriber_id);
+    throw error;
+  }
+}
+
+
+function setDefaultSource (subscriber_id, source_id) {
+
+  return setDefaultStripeSource(`cus_${subscriber_id}`, source_id)
+  .then(() => true);
+}
+
+
+function updateSubscriber (subscriber_id, { email, password, ...data }) {
+
+  data = sanitize(data);
+
+  data.time_updated = Date.now();
+
+  return writeSubscriberUpdates(subscriber_id, data)
+  .then(() => ({ subscriber_id }));
+};
+
+
+function updateSubscriberEmail (subscriber_id, email, password, new_email) {
+
+  // Resolves a client token with which to update Vuex store.
+
+  return updateAuth0Email(`auth0|cus_${subscriber_id}`, email, password, new_email)
+  .then(() => true);
+}
+
+
+function updateSubscriberPassword (subscriber_id, data) {
+
+  return updateAuth0Password(`auth0|cus_${subscriber_id}`, data)
+  .then(() => true);
+}
+
+
+function updateSubscription () {
+
+  // TODO
+  // Handle changes between tiers
+  
+}
+
+
+function writeSubscriberUpdates (subscriber_id, updates) {
+
+  // Writes subscriber updates to DynamoDB.
+
+  const { ExpressionAttributeValues, UpdateExpression } = buildQuery(updates);
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Updating subscriber ${subscriber_id}`);
+  return DynamoDB.update({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
+    Key: { subscriber_id },
+    UpdateExpression,
+    ExpressionAttributeValues
+  }).promise();
+}
+
+
+////////////////////////////////////////////////////////////
+///////////////////////// HELPERS //////////////////////////
+////////////////////////////////////////////////////////////
+
+
+function createSubscriber (seed) {
+
+  const subscriber = Object.assign({
+    address: null,
+    alias: null,
+    time_created: Date.now(),
+    time_updated: 0
+  }, seed);
+
+  console.log(`[DynamoDB:SUBSCRIBERS] Creating new subscriber ${seed.subscriber_id}`);
+  return DynamoDB.put({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
+    Item: subscriber
+  }).promise();
+}
+
+
+function deleteSubscriberBySubscriberID (subscriber_id) {
 
   const params = {
     TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
     Key: { subscriber_id },
   };
-  
-  return DynamoDB.get(params).promise()
-  .then(({ Item: subscriber }) => {
-    if (subscriber) {
-      subscriber = curateSets(subscriber);
-      return subscriber;
-    } else {
-      throw new Error("Subscriber not found.");
-    }
-  });
-};
 
-
-///////////////////////////////////////////////////
-//////////////////// MUTATIONS ////////////////////
-///////////////////////////////////////////////////
-
-
-const createSubscriber = ({ subscriber_id }) => {
-
-  // Creates a new subscriber in DynamoDB.
-
-  const subscriber = {
-    subscriber_id,
-    created_at: new Date().getTime(),
-    channels: DynamoDB.createSet(["__DEFAULT__"]),
-    syndicates: DynamoDB.createSet(["__DEFAULT__"])
-  };
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
-    Item: subscriber
-  };
-
-  return DynamoDB.put(params).promise()
-  .then(() => ({ subscriber_id }));
-};
-
-
-const modifySubscription = async (root, args) => {
-
-  // Subscribes or unsubscribes a user to a particular channel or syndicate,
-  // updating both Stripe and DynamoDB to reflect the changes.
-
-  const { data } = args;
-
-  // subscribeToChannel()
-  // unsubscribeFromChannel()
-  // subscribeToSyndicate()
-  // unsubscribeFromSyndicate()
-
-  if (data._channel_id) {
-    return handleModifySubscriptionChannel(data)
-    .then(() => true)
-    .catch(error => {
-      console.error(error);
-      throw new Error("Error modifying channel subscription.");
-    });
-  }
-
-  if (data._syndicate_id) {
-    return handleModifySubscriptionSyndicate(data)
-    .then(() => true)
-    .catch(error => {
-      console.error(error);
-      throw new Error("Error modifying syndicate subscription.");
-    });
-  }
-};
-
-
-////////////////////////////////////////////////////
-///////////////////// EXPORTS //////////////////////
-////////////////////////////////////////////////////
-
-
-module.exports = {
-  getSubscriberById,
-  createSubscriber,
-  modifySubscription
-};
-
-
-////////////////////////////////////////////////////
-//////////////////// FUNCTIONS /////////////////////
-////////////////////////////////////////////////////
-
-
-async function handleModifySubscriptionChannel(data) {
-
-  var a = b = Promise.resolve();
-
-  const {
-    subscriber_id,
-    _channel_id,
-    subscribe
-  } = data;
-
-  const params = {
-    TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-    Key: { channel_id: _channel_id }
-  };
-
-  const {
-    subscribers,
-    plan_id
-  } = await DynamoDB.get(params).promise().then(({ Item: channel }) => {
-
-    // This is basically just getChannelById, but re-written here because otherwise
-    // we have circular dependency issue between this file (subscriber.js) and channel.js,
-    // which makes use of getSubscriberById, which is exported from this file.
-
-    if (channel) {
-      channel = curateSets(channel);
-      return channel;
-    } else {
-      throw new Error();
-    }
-  });
-  
-  if (subscribe) {
-
-    // if (subscribe) -> Create subscription.
-
-    if (subscribers.indexOf(subscriber_id) > -1) {
-      throw new Error("Already subscribed.");
-    }
-
-    // Add subscription to Stripe user.
-
-    console.log(`${"[Stripe] ".padEnd(30, ".")} Creating new subscription for subscriber ${subscriber_id}`);
-    const { id: subscription_id } = await stripe.subscriptions.create({
-      customer: `cus_${subscriber_id}`,
-      items: [{ plan: plan_id }]
-    });
-
-    // Add subscriber to channel's subscriber array.
-
-    console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Appending subscriber ${subscriber_id} to channel ${_channel_id}`);
-    a = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-      Key: { channel_id: _channel_id },
-      UpdateExpression: `ADD subscribers :subscriber_id`,
-      ExpressionAttributeValues: { ":subscriber_id": DynamoDB.createSet([subscriber_id]) }
-    }).promise();
-
-    // Add channel to subscriber's channel array.
-
-    console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Appending channel ${_channel_id} to subscriber ${subscriber_id}`);
-    b = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
-      Key: { subscriber_id },
-      UpdateExpression: `ADD channels :channel_id`,
-      ExpressionAttributeValues: { ":channel_id": DynamoDB.createSet([_channel_id]) }
-    }).promise();
-
-  } else {
-
-    // else -> Delete subscription.
-
-    const { subscriptions: { data: subscriptions }} = await stripe.customers.retrieve(`cus_${subscriber_id}`);
-
-    // Obtain the correct subscription_id to be cancelled.
-
-    var subscription_id;
-    for (var i = 0; i < subscriptions.length; i++) {
-      const product_id = subscriptions[i].plan.product;
-      if (product_id === `prod_channel_${_channel_id}`) {
-        subscription_id = subscriptions[i].id;
-        break;
-      } else if (i === subscriptions.length - 1) {
-        throw new Error("Subscription not found.");
-      }
-    }
-
-    // Cancel the subscription.
-
-    console.log(`${"[Stripe] ".padEnd(30, ".")} Cancelling subscription ${subscription_id}`);
-    await stripe.subscriptions.del(subscription_id);
-
-    // Remove subscriber from channel's subscriber array.
-
-    console.log(`${"[DynamoDB:CHANNELS] ".padEnd(30, ".")} Removing subscriber ${subscriber_id} from channel ${_channel_id}`);
-    a = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_CHANNELS,
-      Key: { channel_id: _channel_id },
-      UpdateExpression: `DELETE subscribers :subscriber_id`,
-      ExpressionAttributeValues: { ":subscriber_id": DynamoDB.createSet([subscriber_id]) }
-    }).promise();
-
-    // Remove channel from subscriber's channel array.
-
-    console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Removing channel ${_channel_id} from subscriber ${subscriber_id}`);
-    b = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
-      Key: { subscriber_id },
-      UpdateExpression: `DELETE channels :channel_id`,
-      ExpressionAttributeValues: { ":channel_id": DynamoDB.createSet([_channel_id]) }
-    }).promise();
-  }
-
-  return Promise.all([a,b]);
+  console.log(`[DynamoDB:SUBSCRIBERS] Deleting subscriber ${subscriber_id}`);
+  return DynamoDB.delete(params).promise();
 }
 
 
-async function handleModifySubscriptionSyndicate(data) {
-
-  var a = b = Promise.resolve();
-
-  const {
-    subscriber_id,
-    _syndicate_id,
-    subscribe
-  } = data;
-
-  const {
-    subscribers,
-    plan_id
-  } = await getSyndicateById(null, { syndicate_id: _syndicate_id });
+function deleteMessagesBySubscriberID (subscriber_id) {
   
-  if (subscribe) {
+}
 
-    // if (subscribe) -> Create subscription.
 
-    if (subscribers.indexOf(subscriber_id) > -1) {
-      throw new Error("Already subscribed.");
+async function deleteSubscriptionsBySubscriberID (subscriber_id) {
+
+  const params = {
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    KeyConditionExpression: "subscriber_id = :subscriber_id",
+    ExpressionAttributeValues: {
+      ":subscriber_id": subscriber_id
     }
+  };
 
-    // Add subscription to Stripe user.
+  const subscriptions = await queryAll(params);
 
-    console.log(`${"[Stripe] ".padEnd(30, ".")} Creating new subscription for subscriber ${subscriber_id}`);
-    const { id: subscription_id } = await stripe.subscriptions.create({
-      customer: `cus_${subscriber_id}`,
-      items: [{ plan: plan_id }]
-    });
-
-    // Add subscriber to syndicate's subscriber array.
-
-    console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Appending subscriber ${subscriber_id} to syndicate ${_syndicate_id}`);
-    a = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-      Key: { syndicate_id: _syndicate_id },
-      UpdateExpression: `ADD subscribers :subscriber_id`,
-      ExpressionAttributeValues: { ":subscriber_id": DynamoDB.createSet([subscriber_id]) }
-    }).promise();
-
-    // Add syndicate to subscriber's syndicate array.
-
-    console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Appending syndicate ${_syndicate_id} to subscriber ${subscriber_id}`);
-    b = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
-      Key: { subscriber_id },
-      UpdateExpression: `ADD syndicates :syndicate_id`,
-      ExpressionAttributeValues: { ":syndicate_id": DynamoDB.createSet([_syndicate_id]) }
-    }).promise();
-
-  } else {
-
-    // else -> Delete subscription.
-
-    const { subscriptions: { data: subscriptions }} = await stripe.customers.retrieve(`cus_${subscriber_id}`);
-
-    // Obtain the correct subscription_id to be cancelled.
-
-    var subscription_id;
-    for (var i = 0; i < subscriptions.length; i++) {
-      const product_id = subscriptions[i].plan.product;
-      if (product_id === `prod_syndicate_${_syndicate_id}`) {
-        subscription_id = subscriptions[i].id;
-        break;
-      } else if (i === subscriptions.length - 1) {
-        throw new Error("Subscription not found.");
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Deleting all subscriptions for subscriber ${subscriber_id}`);
+  const chunked = chunk(subscriptions, 25).map(chunk => {
+    const requests = chunk.map(({ channel_id }) => ({
+      DeleteRequest: {
+        Key: {
+          channel_id,
+          subscriber_id
+        }
       }
+    }));
+    const params = {
+      RequestItems: {
+        [process.env.DYNAMODB_TABLE_SUBSCRIPTIONS]: requests
+      }
+    };
+    return DynamoDB.batchWrite(params).promise();
+  });
+
+  return Promise.all(chunked);
+}
+
+
+async function subscribeToChannel (subscriber_id, channel_id, tier, extra) {
+
+  const [
+    {
+      Item: {
+        funding,
+        plan_id
+      }
+    },
+    {
+      Items: existing_subscriptions
     }
+  ] = await Promise.all([
 
-    // Cancel the subscription.
+    DynamoDB.get({
+      TableName: process.env.DYNAMODB_TABLE_CHANNELS,
+      Key: { channel_id }
+    }).promise(),
 
-    console.log(`${"[Stripe] ".padEnd(30, ".")} Cancelling subscription ${subscription_id}`);
-    await stripe.subscriptions.del(subscription_id);
+    DynamoDB.query({
+      TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+      IndexName: `${process.env.DYNAMODB_TABLE_SUBSCRIPTIONS}-GSI-1`,
+      KeyConditionExpression: "channel_id = :channel_id AND subscriber_id = :subscriber_id",
+      ExpressionAttributeValues: {
+        ":channel_id": channel_id,
+        ":subscriber_id": subscriber_id
+      }
+    }).promise()
+  ]);
 
-    // Remove subscriber from syndicate's subscriber array.
-
-    console.log(`${"[DynamoDB:SYNDICATES] ".padEnd(30, ".")} Removing subscriber ${subscriber_id} from syndicate ${_syndicate_id}`);
-    a = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
-      Key: { syndicate_id: _syndicate_id },
-      UpdateExpression: `DELETE subscribers :subscriber_id`,
-      ExpressionAttributeValues: { ":subscriber_id": DynamoDB.createSet([subscriber_id]) }
-    }).promise();
-
-    // Remove syndicate from subscriber's syndicate array.
-
-    console.log(`${"[DynamoDB:SUBSCRIBERS]".padEnd(30, ".")} Removing syndicate ${_syndicate_id} from subscriber ${subscriber_id}`);
-    b = DynamoDB.update({
-      TableName: process.env.DYNAMODB_TABLE_SUBSCRIBERS,
-      Key: { subscriber_id },
-      UpdateExpression: `DELETE syndicates :syndicate_id`,
-      ExpressionAttributeValues: { ":syndicate_id": DynamoDB.createSet([_syndicate_id]) }
-    }).promise();
+  if (existing_subscriptions.length) {
+    throw new Error("![400] Already subscribed.");
   }
 
-  return Promise.all([a,b]);
+  const active = funding === "per_month";
+
+  // Create Stripe subscription.
+
+  const {
+    id: stripe_id
+  } = await createStripeSubscription(`cus_${subscriber_id}`, plan_id, tier, extra, active);
+
+  const subscription_id = stripe_id.replace(/^sub_/g, "");
+
+  const subscription = {
+    channel_id,
+    extra,
+    subscriber_id,
+    subscription_id,
+    tier,
+    time_created: Date.now()
+  };
+
+  // Create DynamoDB subscription.
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Creating subscription ${subscriber_id}:${subscription_id}`);
+  return DynamoDB.put({
+    TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+    Item: subscription
+  }).promise()
+  .then(() => subscription);
+}
+
+
+async function subscribeToSyndicate (subscriber_id, syndicate_id, tier, extra) {
+
+  const [
+    {
+      Item: {
+        plan_id
+      }
+    },
+    {
+      Items: subscriptions
+    }
+  ] = await Promise.all([
+
+    DynamoDB.get({
+      TableName: process.env.DYNAMODB_TABLE_SYNDICATES,
+      Key: { syndicate_id }
+    }).promise(),
+
+    DynamoDB.query({
+      TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+      KeyConditionExpression: "subscriber_id = :subscriber_id",
+      ExpressionAttributeValues: {
+        ":subscriber_id": subscriber_id
+      }
+    }).promise()
+  ]);
+
+  if (subscriptions.filter(({ syndicate_id: id }) => (id === syndicate_id)).length) {
+    throw new Error("![400] Already subscribed.");
+  }
+
+  // Create Stripe subscription.
+
+  const {
+    id: stripe_id
+  } = await createStripeSubscription(`cus_${subscriber_id}`, plan_id, tier, extra);
+
+  const subscription_id = stripe_id.replace(/^sub_/g, "");
+
+  const subscription = {
+    extra,
+    subscriber_id,
+    subscription_id,
+    syndicate_id,
+    tier,
+    time_created: Date.now()
+  };
+
+  console.log(`[DynamoDB:SUBSCRIPTIONS] Creating subscription ${subscriber_id}:${subscription_id}`);
+  return Promise.all([
+
+    // Remove channel subscriptions covered by new syndicate subscription.
+
+    resolveCoverage(syndicate_id, subscriber_id, subscriptions),
+
+    // Create subscription in DynamoDB.
+
+    DynamoDB.put({
+      TableName: process.env.DYNAMODB_TABLE_SUBSCRIPTIONS,
+      Item: subscription
+    }).promise()
+  ])
+  .then(() => subscription);
+}
+
+
+async function resolveCoverage (syndicate_id, subscriber_id, subscriptions) {
+
+  // This method deletes all channel subscriptions already covered under the syndicate.
+
+  const {
+    Items: channels
+  } = await DynamoDB.query({
+    TableName: process.env.DYNAMODB_TABLE_MEMBERSHIPS,
+    IndexName: `${process.env.DYNAMODB_TABLE_MEMBERSHIPS}-GSI`,
+    KeyConditionExpression: "syndicate_id = :syndicate_id",
+    ExpressionAttributeValues: {
+      ":syndicate_id": syndicate_id
+    }
+  }).promise();
+
+  // Produces an array of subscriptions intersected with "channel_id" from the channels array.
+
+  const covered = intersectionBy(subscriptions, channels, ({ channel_id }) => channel_id);
+
+  return Promise.all(covered.map(({ subscriber_id, subscription_id }) => deleteSubscription(subscriber_id, subscription_id)));
 }

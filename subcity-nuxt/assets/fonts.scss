@@ -1,0 +1,54 @@
+@font-face {
+    font-family: "Van Regular";
+    src: url("../static/fonts/van_condensed_pro-regular-webfont.woff2") format("woff2"),
+         url("../static/fonts/van_condensed_pro-regular-webfont.woff") format("woff");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Van Bold";
+    src: url("../static/fonts/van_condensed_pro-bold-webfont.woff2") format("woff2"),
+         url("../static/fonts/van_condensed_pro-bold-webfont.woff") format("woff");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Van Italic";
+    src: url("../static/fonts/van_condensed_pro-italic-webfont.woff2") format("woff2"),
+         url("../static/fonts/van_condensed_pro-italic-webfont.woff") format("woff");
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Van Bold Italic";
+    src: url("../static/fonts/van_condensed_pro-bold_italic-webfont.woff2") format("woff2"),
+         url("../static/fonts/van_condensed_pro-bold_italic-webfont.woff") format("woff");
+    font-weight: normal;
+    font-style: normal;
+}
+
+body,
+.md-list {
+	font-family: "Van Regular", sans-serif !important;
+}
+
+em {
+   font-family: "Van Italic", sans-serif;
+   font-weight: normal;
+   font-style: normal;
+}
+
+strong {
+   font-family: "Van Bold", sans-serif;
+   font-weight: normal;
+   font-style: normal;
+}
+
+.bold-italic {
+  font-family: "Van Bold Italic", sans-serif;
+  font-weight: normal;
+  font-style: normal;
+}
