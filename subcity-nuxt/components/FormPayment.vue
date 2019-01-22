@@ -257,6 +257,7 @@
 <style lang="scss" scoped>
 
   .green {
+    color: white !important;
     background-color: #00c853 !important;
   }
 

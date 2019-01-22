@@ -8,7 +8,7 @@
     </video>
     <md-toolbar md-elevation="0">
       <div class="md-caption">Payload</div>
-      <md-button class="md-primary" style="margin-left: auto;">
+      <md-button :href="download" class="md-primary" style="margin-left: auto;">
         <div style="display: flex; align-items: center;">
           <md-icon>save_alt</md-icon>
           <span style="text-transform: initial; margin-left: 4px;">{{ payload }}</span>

@@ -2,8 +2,6 @@
 
   <md-card style="margin: 0; box-shadow: none;">
 
-    <div v-if="sending">sending</div>
-
     <md-card-header style="display: flex; justify-content: space-between; align-items: center; margin: 0; padding: 0 16px;">
       <span style="white-space: nowrap;">{{ release ? "Edit Release" : "New Release" }}</span>
       <div style="position: relative;">
@@ -46,13 +44,13 @@
 
         <md-field :class="getValidationClass('title')">
           <label for="title">Title</label>
-          <md-input type="title" name="title" id="title" autocomplete="title" v-model="form.title" md-counter="25" :disabled="sending" />
+          <md-input type="title" name="title" id="title" autocomplete="title" v-model="form.title" md-counter="30" :disabled="sending" />
           <span class="md-error" v-if="!$v.form.title.required">Title is required.</span>
           <span class="md-error" v-else-if="!$v.form.title.maxLength">Invalid title.</span>
         </md-field>
         <md-field :class="getValidationClass('slug')">
           <label for="slug">Slug</label>
-          <md-input type="slug" name="slug" id="slug" autocomplete="slug" v-model="form.slug" md-counter="25" :disabled="sending" />
+          <md-input type="slug" name="slug" id="slug" autocomplete="slug" v-model="form.slug" md-counter="30" :disabled="sending" />
           <span class="md-error" v-if="!$v.form.slug.required">Slug is required.</span>
           <span class="md-error" v-else-if="!$v.form.slug.maxLength">Invalid slug.</span>
         </md-field>
@@ -64,7 +62,7 @@
 
         <md-field :class="getValidationClass('description')">
             <label for="description">Description</label>
-            <md-textarea name="description" id="description" v-model="form.description" :disabled="sending" md-counter="800" md-autogrow></md-textarea>
+            <md-textarea name="description" id="description" v-model="form.description" :disabled="sending" md-counter="5000" md-autogrow></md-textarea>
             <span class="md-error" v-if="!$v.form.description.required">Description is required.</span>
             <span class="md-error" v-else-if="!$v.form.description.maxLength">Description is too long.</span>
           </md-field>
@@ -102,7 +100,7 @@
         },
         description: {
           required,
-          maxLength: maxLength(800),
+          maxLength: maxLength(5000),
         },
         slug: {
           required,
@@ -198,7 +196,7 @@
             message: `Release ${verb} successfully.`,
             status: 200
           });
-          this.$router.go({ path: "/settings/releases", force: true });
+          setTimeout(() => this.$router.go({ path: "/settings/releases", force: true }), 100);
         })
         .catch(error => {
           this.$store.dispatch("error", error);

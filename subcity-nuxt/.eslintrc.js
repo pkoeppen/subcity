@@ -6,11 +6,10 @@ module.exports = {
     node: true
   },
   extends: 'airbnb',
-  // required to lint *.vue files
+  // Required to lint *.vue files.
   plugins: [
     'html'
   ],
-  // add your custom rules here
   rules: {},
   globals: {}
 }

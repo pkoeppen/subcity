@@ -15,6 +15,12 @@
       Search
     },
 
+    head () {
+      return {
+        title: `Syndicates || sub.city`,
+      }
+    },
+
     fetch ({ store }) {
       return store.dispatch("getAllSyndicates");
     },

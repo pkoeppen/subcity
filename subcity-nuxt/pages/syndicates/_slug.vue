@@ -1,12 +1,13 @@
 <template>
-  <section class="container" style="margin-bottom: 40px;">
+  <section class="container">
 
     <div class="md-layout md-gutter">
 
-      <div class="md-layout-item md-size-30 md-medium-size-30 md-small-size-100">
+      <div class="md-layout-item md-size-30 md-small-size-100">
         <div class="md-layout md-gutter">
 
-          <div class="md-layout-item md-size-100">
+          <!-- profile -->
+          <div class="md-layout-item md-size-100 md-small-size-50 md-xsmall-size-100">
             <md-card class="md-elevation-5" style="margin: 0;">
               <md-card-media md-ratio="1:1" style="position: relative;background-color: rgba(0, 0, 0, .26);">
                 <img :src="`${DATA_HOST}/syndicates/${syndicate.syndicate_id}/profile.jpeg`" class="image" @error="this.style.display='none'"/>
@@ -20,7 +21,6 @@
               <md-card-actions v-if="$store.state.role === 'channel'">
                 <md-menu md-size="auto" md-direction="bottom-end" style="flex: 1;">
                   <md-button class="md-primary md-raised" style="width: 100%" md-menu-trigger :disabled="sending || !syndicates.length">Merge</md-button>
-
                   <md-menu-content>
                     <md-menu-item v-for="syndicate in syndicates" :key="syndicate.syndicate_id" @click="createMergeProposal(syndicate.syndicate_id)">
                       {{ syndicate.title }}
@@ -31,8 +31,9 @@
             </md-card>
           </div>
 
-          <div class="md-layout-item md-size-100">
-            <md-card class="tier md-elevation-2">
+          <!-- tiers -->
+          <div class="tier md-layout-item md-size-100 md-small-size-50 md-xsmall-size-100">
+            <md-card class="md-elevation-2" style="height: 100%;">
               <md-card-header>
                 <md-card-header-text style="display: flex; justify-content: space-between; align-items: center;">
                   <div class="md-title">
@@ -56,8 +57,9 @@
                 </md-button>
               </md-card-actions>
             </md-card>
-
-            <md-card v-if="syndicate.tiers._2.active" class="tier md-elevation-2">
+          </div>
+          <div class="tier md-layout-item md-size-100 md-small-size-50 md-xsmall-size-100">
+            <md-card v-if="syndicate.tiers._2.active" class="md-elevation-2">
               <md-card-header>
                 <md-card-header-text style="display: flex; justify-content: space-between; align-items: center;">
                   <div class="md-title">
@@ -81,8 +83,9 @@
                 </md-button>
               </md-card-actions>
             </md-card>
-
-            <md-card v-if="syndicate.tiers._3.active" class="tier md-elevation-2">
+          </div>
+          <div class="tier md-layout-item md-size-100 md-small-size-50 md-xsmall-size-100">
+            <md-card v-if="syndicate.tiers._3.active" class="md-elevation-2">
               <md-card-header>
                 <md-card-header-text style="display: flex; justify-content: space-between; align-items: center;">
                   <div class="md-title">
@@ -187,6 +190,12 @@ export default {
   name: "Channel",
   components: {
     FileEmbed,
+  },
+
+  head () {
+    return {
+      title: `${this.syndicate.title} || sub.city`,
+    }
   },
 
   mounted () {
@@ -484,7 +493,7 @@ export default {
   }
 
   .card {
-    margin: 32px 0 0 !important;
+    margin: 16px 0 0 !important;
   }
 
   .container {
@@ -501,10 +510,13 @@ export default {
   }
 
   .divider {
-    width: 200vw;
     margin: 20px 0 20px;
-    left: -200%;
-    position: relative;
+
+    @media screen and (min-width: 960px) {
+      width: 200vw;
+      left: -200%;
+      position: relative;
+    }
   }
 
   .header {
@@ -547,10 +559,25 @@ export default {
   }
 
   .tier {
-    margin: 24px 0;
 
-    &:first-child {
-      margin-top: 32px;
+    .md-card {
+      margin: 0;
+    }
+    margin-left: 0;
+    margin-right: 0;
+    margin-top: 16px;
+
+    @media screen and (min-width: 960px) {
+      &:nth-child(2) {
+        margin-top: 24px !important;
+      }
+    }
+
+    @media screen and (min-width: 600px) {
+      margin-top: 16px;
+      &:nth-child(2) {
+        margin-top: 0;
+      }
     }
   }
 

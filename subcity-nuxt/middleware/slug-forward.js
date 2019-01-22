@@ -13,7 +13,7 @@ export default function ({ $axios, params, redirect, error }) {
     }
   `;
 
-  return $axios.post("http://localhost:3001/api/public", { query, vars })
+  return $axios.post("/api/public", { query, vars })
   .then(({ data: { resolveSlug }}) => {
 
     if (resolveSlug && resolveSlug.channel_id) {

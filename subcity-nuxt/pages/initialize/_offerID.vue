@@ -3,10 +3,11 @@
 
     <md-steppers :md-active-step.sync="active" :class="{ 'sending': sending }" md-dynamic-height>
       <md-step id="first" md-label="Personal" :md-done.sync="first" :md-error="firstStepError">
-        <div class="md-layout md-gutter" style="margin-top: 32px;">
+        <div class="md-layout md-gutter" style="margin-top: 32px; align-items: center;">
           <div class="md-layout-item md-size-50">
-            <span class="md-display-3">Lorem ipsum foobar.</span>
-            <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias doloribus eveniet quaerat modi cumque quos sed, temporibus nemo eius amet aliquid, illo minus blanditiis tempore, dolores voluptas dolore placeat nulla.</p>
+            <img src="~/static/images/1.svg" style="height: 120px; margin-bottom: 16px;"/>
+            <div class="md-display-3" style="margin-bottom: 32px;">Good to have you here.</div>
+            <p>This part of the site is still under construction, so I'm just going to put placeholder text here for now. Yes, it's intentional. No, I don't speak Latin. Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias doloribus eveniet quaerat modi cumque quos sed, temporibus nemo eius amet aliquid, illo minus blanditiis tempore, dolores voluptas dolore placeat nulla.</p>
           </div>
           <div class="md-layout-item md-size-50">
 
@@ -42,20 +43,20 @@
                 </md-field>
               </div>
               <div class="md-layout-item md-size-50">
-                <md-field :class="getValidationClass('first', 'postal_code')">
-                  <label for="postal_code">State</label>
-                  <md-input type="postal_code" name="postal_code" id="postal_code" autocomplete="postal_code" v-model="firstForm.postal_code" :disabled="sending" />
-                  <span class="md-error" v-if="!$v.firstForm.postal_code.required">Postal code is required.</span>
+                <md-field :class="getValidationClass('first', 'state')">
+                  <label for="state">State</label>
+                  <md-input type="state" name="state" id="state" autocomplete="state" v-model="firstForm.state" :disabled="sending" />
+                  <span class="md-error" v-if="!$v.firstForm.state.required">State is required.</span>
                 </md-field>
               </div>
             </div>
 
             <div class="md-layout md-gutter">
               <div class="md-layout-item md-size-50">
-                <md-field :class="getValidationClass('first', 'state')">
-                  <label for="state">State</label>
-                  <md-input type="state" name="state" id="state" autocomplete="state" v-model="firstForm.state" :disabled="sending" />
-                  <span class="md-error" v-if="!$v.firstForm.state.required">State is required.</span>
+                <md-field :class="getValidationClass('first', 'postal_code')">
+                  <label for="postal_code">Postal code</label>
+                  <md-input type="postal_code" name="postal_code" id="postal_code" autocomplete="postal_code" v-model="firstForm.postal_code" :disabled="sending" />
+                  <span class="md-error" v-if="!$v.firstForm.postal_code.required">Postal code is required.</span>
                 </md-field>
               </div>
               <div class="md-layout-item md-size-50">
@@ -72,7 +73,7 @@
       </md-step>
 
       <md-step id="second" md-label="Payment" :md-done.sync="second" :md-error="secondStepError">
-        <div class="md-layout md-gutter" style="margin-top: 32px;">
+        <div class="md-layout md-gutter" style="margin-top: 32px; align-items: center;">
           <div class="md-layout-item md-size-40">
 
             <md-field :class="getValidationClass('second', 'account_number')">
@@ -83,7 +84,7 @@
 
             <md-field :class="getValidationClass('second', 'routing_number')">
               <label for="routing_number">Routing number</label>
-              <md-input type="routing_number" name="routing_number" id="routing_number" autocomplete="routing_number" v-model="secondForm.routing_number" :disabled="sending" />
+              <md-input type="routing_number" name="routing_number" id="routing_number" autocomplete="routing_number" v-model="secondForm.routing_number" :disabled="sending || routingNumberDisabled" />
               <span class="md-error" v-if="!$v.secondForm.routing_number.required">Routing number is required.</span>
             </md-field>
 
@@ -98,14 +99,15 @@
               <div class="md-layout-item md-size-50">
                 <md-field :class="getValidationClass('second', 'dob')">
                   <label for="dob">Date of birth</label>
-                  <md-input type="dob" name="dob" id="dob" autocomplete="dob" v-model="secondForm.dob" :disabled="sending" />
+                  <md-input placeholder="yyyy-mm-dd" type="dob" name="dob" id="dob" autocomplete="dob" v-model="secondForm.dob" :disabled="sending" />
                   <span class="md-error" v-if="!$v.secondForm.dob.required">Date of birth is required.</span>
                 </md-field>
               </div>
             </div>
           </div>
           <div class="md-layout-item md-size-60">
-            <span class="md-display-3">Lorem ipsum foobar.</span>
+            <img src="~/static/images/2.svg" style="height: 120px; margin-bottom: 16px;"/>
+            <div class="md-display-3" style="margin-bottom: 32px;">Ready the cannons.</div>
             <p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Molestias doloribus eveniet quaerat modi cumque quos sed, temporibus nemo eius amet aliquid, illo minus blanditiis tempore, dolores voluptas dolore placeat nulla.</p>
           </div>
         </div>
@@ -116,7 +118,9 @@
       <md-step id="third" md-label="Credentials" :md-done.sync="third" style="position: relative;">
 
         <div class="md-layout md-gutter" style="margin-top: 32px; justify-content: center;">
-          <div class="md-layout-item md-size-33"></div>
+          <div class="md-layout-item md-size-100" style="display: flex; justify-content: center;">
+            <img src="~/static/images/3.svg" style="height: 120px; margin-bottom: 32px;"/>
+          </div>
           <div class="md-layout-item md-size-33">
             <md-field :class="getValidationClass('third', 'email')">
               <label for="email">Email</label>
@@ -135,7 +139,6 @@
             </md-checkbox>
             <md-button class="md-raised md-primary" style="float:right; margin-right: 0;" @click="validateFields()">Initialize</md-button>
           </div>
-          <div class="md-layout-item md-size-33"></div>
         </div>
 
         <md-progress-bar md-mode="indeterminate" v-if="sending" />
@@ -149,6 +152,7 @@
   import { validationMixin } from "vuelidate"
   import {
     required,
+    requiredIf,
     email,
     minLength,
     maxLength,
@@ -156,11 +160,14 @@
   } from "vuelidate/lib/validators";
   import countries from "~/assets/countries.json";
 
-  var stripe, card;
-
   export default {
     name: "Initialization",
     mixins: [validationMixin],
+    head () {
+      return {
+        title: `Onboarding || sub.city`,
+      }
+    },
     data: () => ({
       countries,
       active: "first",
@@ -218,7 +225,6 @@
       secondForm: {
         account_number: {
           required,
-          numeric
         },
         dob: {
           required,
@@ -227,7 +233,7 @@
           required,
         },
         routing_number: {
-          required,
+          required: requiredIf(function () { return this.firstForm.country === "United States of America" }),
         },
       },
       thirdForm: {
@@ -271,13 +277,6 @@
           message: `${statusText}: ${message}`,
           statusCode: status
         });
-      });
-    },
-
-    created() {
-      this.$axios.get("http://localhost:3000/countries.json")
-      .then(({ data }) => {
-        this.countries = data;
       });
     },
 
@@ -359,6 +358,13 @@
           this.initializeChannel();
         }
       }
+    },
+
+    computed: {
+
+      routingNumberDisabled () {
+        return this.firstForm.country !== "United States of America";
+      }
     }
   }
 </script>
@@ -378,5 +384,9 @@
     top: 0;
     right: 0;
     left: 0;
+  }
+
+  p {
+    line-height: 28px;
   }
 </style>

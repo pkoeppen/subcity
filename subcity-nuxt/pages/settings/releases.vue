@@ -1,8 +1,7 @@
 <template>
-  <section class="container">
-
-    <md-toolbar class="fullwidth-toolbar md-primary" md-elevation="0">
-      <div class="container">
+  <div>
+    <md-toolbar class="toolbar md-primary" md-elevation="0">
+      <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; width: 100%; align-items: center;">
           <md-autocomplete id="release-select" @md-opened="autocompleteOpenedFix" @md-selected="selectRelease" v-model="selectedRelease" :md-options="releases.map(r => ({ title: r.title, time_created: r.time_created, toLowerCase: () => r.title.toLowerCase(), toString: () => r.title }))" :disabled="sending" md-layout="box" md-dense>
             <label>Find release</label>
@@ -16,81 +15,79 @@
           <div style="height: 20px; margin-left: 32px;" v-if="sending">
             <md-progress-spinner class="md-accent" :md-diameter="20" :md-stroke="3" md-mode="indeterminate"/>
           </div>
-<!--           <div class="md-caption" style="margin-left: 32px" v-else>
-            {{ releases.length }} release{{ !releases.length || releases.length > 1 ? "s" : "" }}
-          </div> -->
         </div>
         <md-button @click="">
           Create New
         </md-button>
       </div>
     </md-toolbar>
+    <section class="container">
+      <div class="md-layout">
+        <div v-if="releases.length" class="md-layout-item md-size-40" style="margin-top: 32px;">
+          <div v-for="release in releases" style="margin: 0 16px 16px 0;">
 
-    <div class="md-layout" style="margin-top: 64px;">
-      <div v-if="releases.length" class="md-layout-item md-size-40" style="margin-top: 32px;">
-        <div v-for="release in releases" style="margin: 0 16px 16px 0;">
+            <md-card style="margin: 0;">
+              <md-card-media-cover md-solid>
+                <md-card-media class="ratio-widescreen">
+                  <img :src="bannerURL(release.time_created)" class="image"/>
+                </md-card-media>
+                <md-card-area>
+                  <md-card-header>
+                    <span class="md-title">{{ release.title }}</span>
+                    <nuxt-link :to="`/channels/${channel_slug}/${release.slug}`" style="margin-right: 80px;">
+                      https://sub.city/channels/{{ channel_slug }}/{{ release.slug }}
+                    </nuxt-link>
+                  </md-card-header>
+                </md-card-area>
+              </md-card-media-cover>
 
-          <md-card style="margin: 0;">
-            <md-card-media-cover md-solid>
-              <md-card-media class="ratio-widescreen">
-                <img :src="bannerURL(release.time_created)" class="image"/>
-              </md-card-media>
-              <md-card-area>
-                <md-card-header>
-                  <span class="md-title">{{ release.title }}</span>
-                  <nuxt-link :to="`https://sub.city/channels/${channel_slug}/${release.slug}`" style="margin-right: 80px;">
-                    https://sub.city/channels/{{ channel_slug }}/{{ release.slug }}
-                  </nuxt-link>
-                </md-card-header>
-              </md-card-area>
-            </md-card-media-cover>
+              <div class="speed-dial">
+                <md-speed-dial md-direction="top">
+                  <md-speed-dial-target class="md-primary" @click="selectRelease(release)">
+                    <md-icon>edit</md-icon>
+                  </md-speed-dial-target>
 
-            <div class="speed-dial">
-              <md-speed-dial md-direction="top">
-                <md-speed-dial-target class="md-primary" @click="selectRelease(release)">
-                  <md-icon>edit</md-icon>
-                </md-speed-dial-target>
+                  <md-speed-dial-content class="md-primary">
+                    <md-button class="md-icon-button" @click="confirmDelete = release.time_created">
+                      <md-icon>delete</md-icon>
+                    </md-button>
 
-                <md-speed-dial-content class="md-primary">
-                  <md-button class="md-icon-button" @click="confirmDelete = release.time_created">
-                    <md-icon>delete</md-icon>
-                  </md-button>
+                    <md-button class="md-icon-button">
+                      <md-icon>share</md-icon>
+                    </md-button>
+                  </md-speed-dial-content>
+                </md-speed-dial>
+              </div>
+            </md-card>
 
-                  <md-button class="md-icon-button">
-                    <md-icon>share</md-icon>
-                  </md-button>
-                </md-speed-dial-content>
-              </md-speed-dial>
-            </div>
-          </md-card>
+          </div>
+        </div>
 
+        <div v-else class="md-layout-item md-size-40">
+          <md-empty-state
+            md-icon="perm_media"
+            md-label="Create your first release"
+            md-description="Creating project, you'll be able to upload your design and collaborate with people."
+            style="margin-top: 64px;">
+            <md-button class="md-primary md-raised" @click="showDialog = true">Create new</md-button>
+          </md-empty-state>
+        </div>
+
+        <div class="md-layout-item md-size-60">
+          <form-release :release.sync="release" :slug="channel_slug"/>
         </div>
       </div>
 
-      <div v-else class="md-layout-item md-size-40">
-        <md-empty-state
-          md-icon="perm_media"
-          md-label="Create your first release"
-          md-description="Creating project, you'll be able to upload your design and collaborate with people."
-          style="margin-top: 64px;">
-          <md-button class="md-primary md-raised" @click="showDialog = true">Create new</md-button>
-        </md-empty-state>
-      </div>
-
-      <div class="md-layout-item md-size-60">
-        <form-release :release.sync="release" :slug="channel_slug"/>
-      </div>
-    </div>
-
-    <md-dialog-confirm
-      :md-active.sync="confirmDelete"
-      md-title="Are you sure you want to delete this release?"
-      md-content="Release deletion is forever. <br> All files and content will be <strong>permanently</strong> deleted from our servers."
-      md-confirm-text="Confirm"
-      md-cancel-text="Cancel"
-      @md-cancel="confirmDelete = false"
-      @md-confirm="deleteRelease()" />
-  </section>
+      <md-dialog-confirm
+        :md-active.sync="confirmDelete"
+        md-title="Are you sure you want to delete this release?"
+        md-content="Release deletion is forever. <br> All files and content will be <strong>permanently</strong> deleted from our servers."
+        md-confirm-text="Confirm"
+        md-cancel-text="Cancel"
+        @md-cancel="confirmDelete = false"
+        @md-confirm="deleteRelease()" />
+    </section>
+  </div>
 </template>
 
 <script>
@@ -99,6 +96,18 @@
   export default {
     name: "SettingsReleases",
     components: { FormRelease },
+
+    head () {
+      return {
+        title: `Releases || sub.city`,
+      }
+    },
+
+    fetch ({ store, redirect }) {
+      if (!store.state.role || store.state.role !== 'channel') {
+        return redirect('/portal?login=true')
+      }
+    },
 
     data: () => ({
       channel_slug: null,
@@ -344,26 +353,6 @@
 
 <style lang="scss" scoped>
 
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .fullwidth-toolbar {
-    position: absolute;
-    top: 16px;
-    width: 100vw;
-    left: -8px;
-
-    .container {
-      width: 100%;
-      display: flex;
-      justify-content:
-      space-between;
-      align-items: center;
-    }
-  }
-
   .ratio-widescreen {
     overflow: hidden;
 
@@ -400,6 +389,14 @@
     .md-speed-dial-target {
       background: rgba(255,255,255,.1) !important;
     }
+  }
+
+  .toolbar {
+    width: calc(100% + 32px;);
+    position: relative;
+    left: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
 </style>

@@ -1,0 +1,96 @@
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 250ms;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.md-app-container {
+  overflow: hidden !important;
+}
+
+.md-app-scroller {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.drawer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  .drawer-search {
+    margin: 0;
+
+    @media screen and (min-width: 960px) {
+      display: none;
+    }
+  }
+
+  .settings-link {
+    width: 100%;
+
+    .md-button {
+      width: 100%;
+      margin: 0;
+    }
+
+    .md-ripple {
+      justify-content: flex-start !important;
+    }
+
+    .md-button-content {
+      display: flex;
+      align-items: center;
+
+      :first-child {
+        margin-right: 32px;
+      }
+
+      * {
+        display: inline;
+      }
+    }
+  }
+
+  .taskbar {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.md-dialog-content {
+
+  .badge {
+    position: relative;
+    right: 0;
+    width: 50px;
+    margin: 0 auto;
+  }
+
+  .line-item {
+    min-width: 90px;
+    display: inline-block;
+    letter-spacing: initial;
+    font-size: 16px;
+  }
+
+  &:nth-child(3) {
+    
+    .md-field {
+      margin: 0;
+      padding: 0;
+
+      &:after {
+        top: 32px;
+      }
+    }
+  }
+}

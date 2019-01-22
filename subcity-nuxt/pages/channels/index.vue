@@ -15,6 +15,12 @@
       Search
     },
 
+    head () {
+      return {
+        title: "Channels || sub.city",
+      }
+    },
+
     fetch ({ store }) {
       return store.dispatch("getAllChannels");
     },
@@ -24,12 +30,3 @@
     ]),
   }
 </script>
-
-<style lang="scss" scoped>
-
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-</style>

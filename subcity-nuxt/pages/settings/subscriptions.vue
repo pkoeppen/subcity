@@ -112,6 +112,18 @@
   export default {
     name: "SettingsSubscriptions",
 
+    head () {
+      return {
+        title: `Subscriptions || sub.city`,
+      }
+    },
+
+    fetch ({ store, redirect }) {
+      if (!store.state.role || store.state.role !== 'subscriber') {
+        return redirect('/portal?login=true')
+      }
+    },
+
     data: () => ({
       confirmDeleteDialog: false,
       confirmDeleteDialogContent: "",

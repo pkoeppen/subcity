@@ -203,39 +203,23 @@
         </div>
       </div>
 
-      <div class="md-layout-item md-size-20 md-medium-size-100">
+      <div class="md-layout-item md-size-20 md-medium-size-100" style="margin-top: 40px;">
         <md-card style="margin: 0;">
-        <md-empty-state
-          md-icon="group"
-          md-label="You have no subscribers"
-          md-description="When you do, a summary of your channel's subscriber activity will be displayed here.">
-        </md-empty-state>
-        <md-table>
-          <md-table-row>
-            <md-table-head md-numeric>Tier</md-table-head>
-            <md-table-head>Name</md-table-head>
-          </md-table-row>
-
-          <md-table-row>
-            <md-table-cell md-numeric>1</md-table-cell>
-            <md-table-cell>George Washington</md-table-cell>
-          </md-table-row>
-
-          <md-table-row>
-            <md-table-cell md-numeric>2</md-table-cell>
-            <md-table-cell>Thomas Jefferson</md-table-cell>
-          </md-table-row>
-
-          <md-table-row>
-            <md-table-cell md-numeric>3</md-table-cell>
-            <md-table-cell>Abraham Lincoln</md-table-cell>
-          </md-table-row>
-        </md-table>
-      </md-card>
-
-        <md-content class="md-primary" style="height: 300px; margin-top: 32px; padding: 16px;">
-          <span class="md-display-1" style="color: white;">Help Center</span>
-        </md-content>
+          <div style="display: flex;justify-content:space-between;align-items: center;padding:16px 0 16px;">
+            <div style="display: flex; align-items: center;">
+              <md-icon style="margin: 0 16px;">attach_money</md-icon>
+              <span class="md-title">Transfers</span>
+            </div>
+            <md-badge v-if="transfers.length" class="md-square md-primary" :md-content="transfers.length" style="position: relative; right: 0;margin: 0 16px;"/>
+          </div>
+          <md-divider/> 
+          <md-list v-if="transfers.length">
+            <md-list-item v-for="transfer in transfers" :key="transfer.time_created">
+              <strong style="color: #00c853;">$ {{ (transfer.amount / 100).toFixed(2) }}</strong>
+              <div>{{ parseDate(transfer.time_created) }}</div>
+            </md-list-item>
+          </md-list>
+        </md-card>
       </div>
     </div>
    
@@ -332,8 +316,21 @@
       }
     },
 
+    head () {
+      return {
+        title: `Channel || sub.city`,
+      }
+    },
+
+    fetch ({ store, redirect }) {
+      if (!store.state.role || store.state.role !== 'channel') {
+        return redirect('/portal?login=true')
+      }
+    },
+
     data: () => ({
       channel: {},
+      transfers: [],
       imageProgress: 0,
       fileProgress: 0,
       profileURL: null,
@@ -388,7 +385,14 @@
             subscriptions {
               subscription_id,
               time_created,
-            }
+            },
+
+            transfers {
+              amount,
+              fee_platform,
+              fee_processor,
+              time_created,
+            },
           }
         }
       `;
@@ -424,6 +428,7 @@
         };
 
         this.channel = channel;
+        this.transfers = channel.transfers;
         this.form = form;
         this.profileURL = channel.time_updated ? `${this.DATA_HOST}/channels/${channel.channel_id}/profile.jpeg` : null;
       })
@@ -590,6 +595,11 @@
 
       openImageInput () {
         this.$refs.imageInput.click();
+      },
+
+      parseDate (unix_timestamp) {
+        const date = new Date(unix_timestamp);
+        return `${date.getDate()}/${date.getMonth()+1}/${date.getFullYear()}`;
       },
 
       setPayloadFile (files) {

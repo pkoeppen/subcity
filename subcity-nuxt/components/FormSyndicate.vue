@@ -62,13 +62,13 @@
                 </div>
                 <md-field :class="getValidationClass('tierOneTitle')">
                   <label for="tierOneTitle">Title</label>
-                  <md-input name="tierOneTitle" id="tierOneTitle" v-model="form.tierOneTitle" :disabled="sending || !armed" md-counter="25" />
+                  <md-input name="tierOneTitle" id="tierOneTitle" v-model="form.tierOneTitle" :disabled="sending || !armed" md-counter="30" />
                   <span class="md-error" v-if="!$v.form.tierOneTitle.required">Title is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierOneRate.maxLength">Title is too long.</span>
                 </md-field>
                 <md-field :class="getValidationClass('tierOneDescription')">
                   <label for="tierOneDescription">Description</label>
-                  <md-textarea name="tierOneDescription" id="tierOneDescription" v-model="form.tierOneDescription" :disabled="sending || !armed" md-counter="120" md-autogrow></md-textarea>
+                  <md-textarea name="tierOneDescription" id="tierOneDescription" v-model="form.tierOneDescription" :disabled="sending || !armed" md-counter="300" md-autogrow></md-textarea>
                   <span class="md-error" v-if="!$v.form.tierOneDescription.required">Description is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierOneDescription.maxLength">Description is too long.</span>
                 </md-field>
@@ -99,13 +99,13 @@
                 </div>
                 <md-field :class="getValidationClass('tierTwoTitle')">
                   <label for="tierTwoTitle">Title</label>
-                  <md-input name="tierTwoTitle" id="tierTwoTitle" v-model="form.tierTwoTitle" :disabled="sending || !armed" md-counter="25" />
+                  <md-input name="tierTwoTitle" id="tierTwoTitle" v-model="form.tierTwoTitle" :disabled="sending || !armed" md-counter="30" />
                   <span class="md-error" v-if="!$v.form.tierTwoTitle.required">Title is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierTwoRate.maxLength">Title is too long.</span>
                 </md-field>
                 <md-field :class="getValidationClass('tierTwoDescription')">
                   <label for="tierTwoDescription">Description</label>
-                  <md-textarea name="tierTwoDescription" id="tierTwoDescription" v-model="form.tierTwoDescription" :disabled="sending || !armed" md-counter="120" md-autogrow></md-textarea>
+                  <md-textarea name="tierTwoDescription" id="tierTwoDescription" v-model="form.tierTwoDescription" :disabled="sending || !armed" md-counter="300" md-autogrow></md-textarea>
                   <span class="md-error" v-if="!$v.form.tierTwoDescription.required">Description is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierTwoDescription.maxLength">Description is too long.</span>
                 </md-field>
@@ -136,13 +136,13 @@
                 </div>
                 <md-field :class="getValidationClass('tierThreeTitle')">
                   <label for="tierThreeTitle">Title</label>
-                  <md-input name="tierThreeTitle" id="tierThreeTitle" v-model="form.tierThreeTitle" :disabled="sending || !armed" md-counter="25" />
+                  <md-input name="tierThreeTitle" id="tierThreeTitle" v-model="form.tierThreeTitle" :disabled="sending || !armed" md-counter="30" />
                   <span class="md-error" v-if="!$v.form.tierThreeTitle.required">Title is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierThreeRate.maxLength">Title is too long.</span>
                 </md-field>
                 <md-field :class="getValidationClass('tierThreeDescription')">
                   <label for="tierThreeDescription">Description</label>
-                  <md-textarea name="tierThreeDescription" id="tierThreeDescription" v-model="form.tierThreeDescription" :disabled="sending || !armed" md-counter="120" md-autogrow></md-textarea>
+                  <md-textarea name="tierThreeDescription" id="tierThreeDescription" v-model="form.tierThreeDescription" :disabled="sending || !armed" md-counter="300" md-autogrow></md-textarea>
                   <span class="md-error" v-if="!$v.form.tierThreeDescription.required">Description is required.</span>
                   <span class="md-error" v-else-if="!$v.form.tierThreeDescription.maxLength">Description is too long.</span>
                 </md-field>
@@ -182,7 +182,7 @@
             </md-field>
             <md-field :class="getValidationClass('description')">
               <label for="description">Description</label>
-              <md-textarea name="description" id="description" v-model="form.description" :disabled="sending || !armed" md-counter="800" md-autogrow></md-textarea>
+              <md-textarea name="description" id="description" v-model="form.description" :disabled="sending || !armed" md-counter="5000" md-autogrow></md-textarea>
               <span class="md-error" v-if="!$v.form.description.required">Description is required.</span>
               <span class="md-error" v-else-if="!$v.form.description.maxLength">Description is too long.</span>
             </md-field>
@@ -200,10 +200,8 @@
 
             <md-empty-state
               v-else
-              md-icon="perm_media"
-              md-label="Create your first proposal"
-              md-description="Creating project, you'll be able to upload your design and collaborate with people.">
-              <md-button class="md-primary md-raised">Create release</md-button>
+              md-icon="receipt"
+              md-label="No proposals to display">
             </md-empty-state>
           </div>
 
@@ -212,12 +210,17 @@
               <div style="display: flex;justify-content:space-between;align-items: center;padding:16px 0 16px;">
                 <div style="display: flex; align-items: center;">
                   <md-icon style="margin: 0 16px;">attach_money</md-icon>
-                  <span class="md-title">Payouts</span>
+                  <span class="md-title">Transfers</span>
                 </div>
-                <md-badge v-if="syndicate" class="md-square md-primary" :md-content="syndicate.members.length" style="position: relative; right: 0;margin: 0 16px;"/>
+                <md-badge v-if="syndicate && syndicate.transfers.length" class="md-square md-primary" :md-content="syndicate.transfers.length" style="position: relative; right: 0;margin: 0 16px;"/>
               </div>
               <md-divider/> 
-
+              <md-list v-if="syndicate && syndicate.transfers.length">
+                <md-list-item v-for="transfer in syndicate.transfers" :key="transfer.time_created">
+                  <strong style="color: #00c853;">$ {{ (transfer.amount / 100).toFixed(2) }}</strong>
+                  <div>{{ parseDate(transfer.time_created) }}</div>
+                </md-list-item>
+              </md-list>
             </md-card>
             <md-card style="margin: 0;">
               <div style="display: flex;justify-content:space-between;align-items: center;padding:16px 0 16px;">
@@ -260,7 +263,7 @@
       form: {
         description: {
           required,
-          maxLength: maxLength(800),
+          maxLength: maxLength(5000),
         },
         linkDiscord: { url },
         linkFacebook: { url },
@@ -281,11 +284,11 @@
         },
         tierOneTitle: {
           required,
-          maxLength: maxLength(25),
+          maxLength: maxLength(30),
         },
         tierOneDescription: {
           required,
-          maxLength: maxLength(120)
+          maxLength: maxLength(300)
         },
         tierOneRate: {
           required,
@@ -297,11 +300,11 @@
         },
         tierTwoTitle: {
           required: requiredIf(({ tierTwoActive }) => tierTwoActive),
-          maxLength: maxLength(25),
+          maxLength: maxLength(30),
         },
         tierTwoDescription: {
           required: requiredIf(({ tierTwoActive }) => tierTwoActive),
-          maxLength: maxLength(120)
+          maxLength: maxLength(300)
         },
         tierTwoRate: {
           required: requiredIf(({ tierTwoActive }) => tierTwoActive),
@@ -313,11 +316,11 @@
         },
         tierThreeTitle: {
           required: requiredIf(({ tierThreeActive }) => tierThreeActive),
-          maxLength: maxLength(25),
+          maxLength: maxLength(30),
         },
         tierThreeDescription: {
           required: requiredIf(({ tierThreeActive }) => tierThreeActive),
-          maxLength: maxLength(120)
+          maxLength: maxLength(300)
         },
         tierThreeRate: {
           required: requiredIf(({ tierThreeActive }) => tierThreeActive),

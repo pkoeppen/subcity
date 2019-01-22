@@ -25,7 +25,7 @@ custom:
     types:
       - '*/*'
   customDomain:
-    domainName: sub.city
+    domainName: ${opt:domain, "dev.sub.city"}
     basePath: ''
     stage: ${opt:stage, "dev"}
     createRoute53Record: true

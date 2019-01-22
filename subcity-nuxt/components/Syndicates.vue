@@ -1,6 +1,6 @@
 <template>
   <div class="md-layout">
-    <div class="md-layout-item md-size-25 md-xsmall-size-100 md-small-size-50 md-medium-size-33" v-for="syndicate in syndicates" :key="syndicate.syndicate_id">
+    <div class="md-layout-item md-size-25 md-small-size-33 md-xsmall-size-50" v-for="syndicate in syndicates" :key="syndicate.syndicate_id">
       <nuxt-link :to="`/syndicates/${syndicate.slug}`">
         <md-card class="card" md-with-hover>
           <md-card-media-cover md-solid>
@@ -31,7 +31,7 @@
   };
 </script>
 
-<style>
+<style lang="scss" scoped>
 
   .card {
     margin: 0 16px 16px 0 !important;
@@ -39,6 +39,14 @@
   
   .md-layout {
     margin-right: -16px !important;
+
+    .md-layout-item {
+      @media screen and (max-width: 400px) {
+        min-width: 100%;
+        max-width: 100%;
+        flex: 0 1 100%;
+      }
+    }
   }
 
 </style>

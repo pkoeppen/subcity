@@ -1,8 +1,7 @@
 <template>
-  <section class="container">
-
-    <md-toolbar class="fullwidth-toolbar md-primary" md-elevation="0">
-      <div class="container">
+  <div>
+    <md-toolbar class="toolbar md-primary" md-elevation="0">
+      <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; width: 100%; align-items: center;">
           <md-autocomplete id="syndicate-select" @md-opened="autocompleteOpenedFix" @md-selected="selectSyndicate" v-model="selectedSyndicate" :md-options="syndicates.map(s => ({ title: s.title, syndicate_id: s.syndicate_id, toLowerCase: () => s.title.toLowerCase(), toString: () => s.title }))" :disabled="sending" md-layout="box" md-dense>
             <label>Find syndicate</label>
@@ -16,9 +15,6 @@
           <div style="height: 20px; margin-left: 32px;" v-if="sending">
             <md-progress-spinner class="md-accent" :md-diameter="20" :md-stroke="3" md-mode="indeterminate"/>
           </div>
-<!--           <div class="md-caption" style="margin-left: 32px" v-else>
-            {{ syndicates.length }} syndicate{{ !syndicates.length || syndicates.length > 1 ? "s" : "" }}
-          </div> -->
         </div>
         <div class="section-toolbar-end" style="display: flex;">
           <md-button @click="confirmLeave = syndicate.syndicate_id" :disabled="!syndicate">
@@ -32,42 +28,42 @@
         </div>
       </div>
     </md-toolbar>
-
-    <div :style="`margin-top: ${invitations.length ? 96 : 64}px;`">
-
-      <md-toolbar v-if="invitations.length" v-for="invitation in invitations" :key="invitation.syndicate_id" class="md-transparent" md-elevation="1" style="margin: 8px 0;">
-        <div class="container" style="display: flex;">
-          <div style="display: flex; align-items: center;">
-            <span style="margin-right: 16px;">
-              New invitation to join&nbsp;<nuxt-link :to="`/syndicates/${invitation.syndicate.slug}`">{{ invitation.syndicate.title }}</nuxt-link>.
-            </span>
-            <md-button class="md-raised" @click="answerInvitation(invitation.syndicate.syndicate_id, true)" :disabled="sending">Accept</md-button>
-            <md-button @click="answerInvitation(invitation.syndicate.syndicate_id, false)" :disabled="sending">Decline</md-button>
+    <section class="container">
+      <div>
+        <md-toolbar v-if="invitations.length" v-for="invitation in invitations" :key="invitation.syndicate_id" class="md-transparent" md-elevation="1" style="margin: 16px 0;">
+          <div class="container" style="display: flex;">
+            <div style="display: flex; align-items: center;">
+              <span style="margin-right: 16px;">
+                New invitation to join&nbsp;<nuxt-link :to="`/syndicates/${invitation.syndicate.slug}`">{{ invitation.syndicate.title }}</nuxt-link>.
+              </span>
+              <md-button class="md-raised" @click="answerInvitation(invitation.syndicate.syndicate_id, true)" :disabled="sending">Accept</md-button>
+              <md-button @click="answerInvitation(invitation.syndicate.syndicate_id, false)" :disabled="sending">Decline</md-button>
+            </div>
           </div>
-        </div>
-      </md-toolbar>
+        </md-toolbar>
 
-      <form-syndicate style="padding-top: 16px;" :syndicate.sync="syndicate"/>
-    </div>
-
-    <md-dialog-confirm
-      :md-active.sync="confirmLeave"
-      md-title="Confirm abdication"
-      md-content="<div style='max-width: 350px'>Syndicate abdication is forever.<br><br>You will be <strong>permanently</strong> removed as member of this syndicate, until reinvited.</div>"
-      md-confirm-text="Confirm"
-      md-cancel-text="Cancel"
-      @md-cancel="confirmLeave = false"
-      @md-confirm="leaveSyndicate()" />
+        <form-syndicate :syndicate.sync="syndicate"/>
+      </div>
 
       <md-dialog-confirm
-        :md-active.sync="confirmDissolve"
-        md-title="Confirm dissolution"
-        md-content="<div style='max-width: 350px'>Syndicate dissolution is forever.<br><br>If approved, all subscriptions will be cancelled, and all content will be <strong>permanently</strong> deleted from our servers.</div>"
+        :md-active.sync="confirmLeave"
+        md-title="Confirm abdication"
+        md-content="<div style='max-width: 350px'>Syndicate abdication is forever.<br><br>You will be <strong>permanently</strong> removed as member of this syndicate, until reinvited.</div>"
         md-confirm-text="Confirm"
         md-cancel-text="Cancel"
-        @md-cancel="confirmDissolve = false"
-        @md-confirm="dissolveSyndicate()" />
-  </section>
+        @md-cancel="confirmLeave = false"
+        @md-confirm="leaveSyndicate()" />
+
+        <md-dialog-confirm
+          :md-active.sync="confirmDissolve"
+          md-title="Confirm dissolution"
+          md-content="<div style='max-width: 350px'>Syndicate dissolution is forever.<br><br>If approved, all subscriptions will be cancelled, and all content will be <strong>permanently</strong> deleted from our servers.</div>"
+          md-confirm-text="Confirm"
+          md-cancel-text="Cancel"
+          @md-cancel="confirmDissolve = false"
+          @md-confirm="dissolveSyndicate()" />
+    </section>
+  </div>
 </template>
 
 <script>
@@ -76,6 +72,18 @@
   export default {
     name: "SettingsSyndicates",
     components: { FormSyndicate },
+
+    head () {
+      return {
+        title: `Syndicates || sub.city`,
+      }
+    },
+
+    fetch ({ store, redirect }) {
+      if (!store.state.role || store.state.role !== 'channel') {
+        return redirect('/portal?login=true')
+      }
+    },
 
     data: () => ({
       confirmDissolve: false,
@@ -227,7 +235,15 @@
             subscriptions {
               subscription_id,
               time_created,
-            }
+            },
+
+            transfers {
+              amount,
+              channel_id,
+              fee_platform,
+              fee_processor,
+              time_created,
+            },
           }
         }
       `;
@@ -569,6 +585,14 @@
     .md-speed-dial-target {
       background: rgba(255,255,255,.1) !important;
     }
+  }
+
+  .toolbar {
+    width: calc(100% + 32px;);
+    position: relative;
+    left: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
 </style>

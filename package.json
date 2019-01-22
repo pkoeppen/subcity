@@ -2,6 +2,8 @@
   "name": "subcity",
   "version": "1.0.0",
   "license": "UNLICENSED",
+  "author": "Peter Koeppen <peter@sub.city>",
+  "private": true,
   "description": "A collaborative paywall and subscription service.",
   "author": "Peter Koeppen",
   "scripts": {

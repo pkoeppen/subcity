@@ -30,7 +30,7 @@
       </div>
 
       <div class="md-title" style="margin-top: 40px;">Invites</div>
-      <div class="md-caption">Experimental</div>
+      <div class="md-caption">{{ 5 - (invites || []).length }} remaining</div>
       <div class="md-toolbar md-transparent" style="flex-flow: row; margin-top: 8px; align-items: flex-end; padding-right: 0;">
         <div style="flex: 1;">
           <md-field :class="getValidationClass('formEmailInvite', 'email')">
@@ -42,7 +42,7 @@
         </div>
         <md-button style="bottom: 8px;" @click="sendEmailInvite()" :disabled="sending">Invite</md-button>
       </div>
-      <p class="md-caption" style="margin-left: 16px; margin-right: 96px;">This is an experimental feature currently under development. In the future, channels will be able to bid for internal "ad slots" displaying their content to subscribers site-wide.</p>
+      <p class="md-caption" style="margin-left: 16px; margin-right: 96px;">Spread the word &mdash; but carefully. Each channel only gets five invitations to distribute.</p>
       <md-list v-if="invites.length" class="md-dense" style="margin-right: 96px;">
         <md-list-item v-for="(invite, index) in invites" :key="index">
           <span>{{ invite }}</span>

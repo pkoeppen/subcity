@@ -1,5 +1,5 @@
 <template>
-  <div id="portal">
+  <div id="portal" style="margin-bottom: 0;">
     <md-tabs class="md-primary" md-alignment="centered" md-sync-route style="margin-left: -16px; margin-right: -16px; z-index: 10;">
       <md-tab id="tab-signup" md-label="Sign Up" to="/portal?signup=true">
         <section class="container">
@@ -28,6 +28,12 @@
     components: {
       FormLogin,
       FormSignup
+    },
+
+    head () {
+      return {
+        title: `Portal || sub.city`,
+      }
     },
 
     mounted () {

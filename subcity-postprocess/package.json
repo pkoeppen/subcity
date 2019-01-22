@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "license": "UNLICENSED",
   "description": "A private endpoint to detect and format file uploads.",
+  "scripts": {
+    "deploy": "serverless deploy --stage prod --domain-in upload.sub.city --domain-out data.sub.city && serverless s3deploy --stage prod --domain-in upload.sub.city --domain-out data.sub.city",
+    "devdeploy": "serverless deploy --stage dev --domain-in upload-dev.sub.city --domain-out data-dev.sub.city && serverless s3deploy --stage dev --domain-in upload-dev.sub.city --domain-out data-dev.sub.city"
+  },
   "dependencies": {
     "sharp": "^0.20.7"
   },

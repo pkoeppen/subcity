@@ -27,7 +27,7 @@ payload field in DynamoDB.
 ////////////////////////////////////////////////////
 
 
-module.exports.postprocess = (event, context, callback) => {
+module.exports.postprocess = async (event, context, callback) => {
 
   for (let i in event.Records) {
     let { key } = event.Records[i].s3.object;
@@ -35,10 +35,9 @@ module.exports.postprocess = (event, context, callback) => {
     // Check if the uploaded file is a payload file.
 
     if (/payload/.test(key)) {
-      processPayloadFile(key, callback);
-      continue;
+      await processPayloadFile(key, callback);
     } else {
-      processImageFile(key, callback);
+      await processImageFile(key, callback);
     }
   }
 };

@@ -1,15 +1,15 @@
 <template>
-  <div class="wrapper">
-    <md-app style="height: 100%;">
-      <md-app-toolbar class="md-transparent" md-elevation="0" style="margin-top: 16px;">
+  <div>
+    <md-app style="height: 100vh;" md-waterfall md-mode="fixed">
+      <md-app-toolbar style="background-color: white; z-index: 100;">
         <div class="container md-toolbar-row">
           <nuxt-link to="/">
             <logo style="width: 110px;"/>
           </nuxt-link>
 
           <div class="md-toolbar-section-end" style="flex: 1;">
-            <div v-if="$route.fullPath !== '/'" class="md-layout-item md-size-50 md-xsmall-hide">
-              <search style="margin-right: 16px;"/>
+            <div v-if="$route.fullPath !== '/'" class="md-layout-item md-size-50 md-small-hide" style="margin-right: 16px;">
+              <search />
             </div>
             <nuxt-link to="/channels">
               <md-button>channels</md-button>
@@ -30,23 +30,22 @@
         <drawer-public v-else />
       </md-app-drawer>
 
-      <md-app-content style="position: relative; overflow: hidden;">
-        <nuxt style="min-height: 100vh;"/>
-        <footer id="footer" v-if="$route.fullPath !== '/'">
-        <div class="container">
-          <div class="md-layout md-gutter">
-            <div class="md-layout-item md-size-33">
-              <div style="display: flex; justify-content: center; align-items: center; height: 200px; width: 100%; color: white;"><div>foo</div></div>
+      <md-app-content>
+
+        <nuxt class="nuxt"/>
+        
+        <md-toolbar id="footer">
+          <div class="container">
+            <div>
+              <span class="md-caption">&copy; 2019 sub.city</span>
+              <nuxt-link to="/site/legal#terms" class="md-caption" style="margin-left: 16px;">Terms</nuxt-link>
+              <nuxt-link to="/site/legal#privacy" class="md-caption" style="margin-left: 16px;">Privacy</nuxt-link>
             </div>
-            <div class="md-layout-item md-size-33">
-              <div style="display: flex; justify-content: center; align-items: center; height: 200px; width: 100%; color: white;"><div>foo</div></div>
-            </div>
-            <div class="md-layout-item md-size-33">
-              <div style="display: flex; justify-content: center; align-items: center; height: 200px; width: 100%; color: white;"><div>foo</div></div>
+            <div>
+              <md-icon>lock</md-icon>
             </div>
           </div>
-        </div>
-      </footer>
+        </md-toolbar>
       </md-app-content>
     </md-app>
 
@@ -148,16 +147,21 @@
   };
 </script>
 
-<style scoped>
-
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
+<style lang="scss" scoped>
 
   .md-drawer {
     width: 320px;
     max-width: calc(100vw - 125px);
+
+    @media screen and (max-width: 450px) {
+      width: 100%;
+      max-width: calc(100vw - 60px);
+    }
+  }
+
+  .nuxt {
+    min-height: calc(100vh - 126px);
+    margin-bottom: 16px;
   }
 
   .nuxt-link-active .md-button {
@@ -176,21 +180,20 @@
     color: white !important;
   }
 
-  .wrapper {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-  }
-
-  footer#footer {
-    height: 200px;
+  #footer {
     position: relative;
-    margin-left: -16px;
-    margin-right: -16px;
-    margin-bottom: -16px;
-    background-color: #ff5252;
+    left: -16px;
+    width: calc(100% + 32px);
+
+    .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .md-icon {
+        color: #ff5252;
+      }
+    }
   }
 
 </style>

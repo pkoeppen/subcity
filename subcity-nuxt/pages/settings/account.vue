@@ -29,6 +29,16 @@
       FormPayment,
       FormSources,
     },
+    head () {
+      return {
+        title: `Account || sub.city`,
+      }
+    },
+    fetch ({ store, redirect }) {
+      if (!store.state.role) {
+        return redirect('/portal?login=true')
+      }
+    },
     asyncData ({ app: { store }}) {
       return { role: store.state.role };
     }

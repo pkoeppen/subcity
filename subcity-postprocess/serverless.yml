@@ -28,16 +28,27 @@ provider:
   runtime: nodejs8.10
   region: us-east-1
   stage: ${opt:stage, "dev"}
-  environment: ${file(../env.yml):${opt:stage, "dev"}}
+  environment:
+    DATA_HOST: "https://s3.amazonaws.com"
+    S3_BUCKET_IN: ${opt:domain-in, "upload-dev.sub.city"}
+    S3_BUCKET_OUT: ${opt:domain-out, "data-dev.sub.city"}
   iamRoleStatements:
     - Effect: Allow
       Action:
-        - s3:* # narrow this
-      Resource: arn:aws:s3:::subcity-bucket-in-${opt:stage, "dev"}/*
+        - s3:*
+      Resource: arn:aws:s3:::${self:provider.environment.S3_BUCKET_IN}
     - Effect: Allow
       Action:
-        - s3:* # narrow this
-      Resource: arn:aws:s3:::subcity-bucket-out-${opt:stage, "dev"}/*
+        - s3:*
+      Resource: arn:aws:s3:::${self:provider.environment.S3_BUCKET_IN}/*
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: arn:aws:s3:::${self:provider.environment.S3_BUCKET_OUT}
+    - Effect: Allow
+      Action:
+        - s3:*
+      Resource: arn:aws:s3:::${self:provider.environment.S3_BUCKET_OUT}/*
 
 functions:
   postprocess:

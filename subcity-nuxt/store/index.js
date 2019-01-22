@@ -1,7 +1,6 @@
-import decode from "jwt-decode";
-import cookie from "js-cookie";
-import cookieParser from "cookieparser";
-
+import decode from 'jwt-decode';
+import cookie from 'js-cookie';
+import cookieParser from 'cookieparser';
 
 export const state = () => ({
   channels: [],
@@ -13,25 +12,19 @@ export const state = () => ({
   id: null,
 });
 
-
 export const actions = {
-
   nuxtServerInit ({ commit, dispatch }, { req }) {
     var auth;
     if (req && req.headers.cookie) {
       const parsed = cookieParser.parse(req.headers.cookie);
       try {
         auth = JSON.parse(parsed.auth);
-        commit("SET_SESSION", auth);
-      } catch (error) {
-
-      }
+        commit('SET_SESSION', auth);
+      } catch (error) {}
     }
-
-    dispatch("getAllChannels");
-    dispatch("getAllSyndicates");
+    dispatch('getAllChannels');
+    dispatch('getAllSyndicates');
   },
-
   success (ctx, snack) {
     const {
       message,
@@ -39,29 +32,25 @@ export const actions = {
       statusText,
     } = snack;
 
-    this.$bus.$emit("snack", {
-      type: "success",
+    this.$bus.$emit('snack', {
+      type: 'success',
       message,
       status,
       statusText,
     });
   },
-
   error (ctx, error) {
-
     var message, status, statusText;
-
     if (error.response) {
-      message = typeof error.response.data === "string" ? error.response.data : error.response.data.message;
+      message = typeof error.response.data === 'string' ? error.response.data : error.response.data.message;
       status = error.response.status;
       statusText = error.response.statusText;
     } else {
       message = error.message;
       status = error.name;
     }
-
-    this.$bus.$emit("snack", {
-      type: "error",
+    this.$bus.$emit('snack', {
+      type: 'error',
       message,
       status,
       statusText,
@@ -77,7 +66,7 @@ export const actions = {
     `;
 
     const vars = { email };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   answerInvitation ({ commit, dispatch }, { syndicate_id, decision }) {
@@ -89,7 +78,7 @@ export const actions = {
     `;
 
     const vars = { syndicate_id, decision };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateChannelEmail ({ commit, dispatch }, { email, password, new_email }) {
@@ -101,7 +90,7 @@ export const actions = {
     `;
 
     const vars = { email, password, new_email };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateChannelPassword ({ commit, dispatch }, data) {
@@ -113,7 +102,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateSubscriber ({ commit, dispatch }, data) {
@@ -127,7 +116,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateSubscriberEmail ({ commit, dispatch }, { email, password, new_email }) {
@@ -139,7 +128,7 @@ export const actions = {
     `;
 
     const vars = { email, password, new_email };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateSubscriberPassword ({ commit, dispatch }, data) {
@@ -151,7 +140,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   createRelease ({ commit, dispatch }, data) {
@@ -165,7 +154,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   updateRelease ({ commit, dispatch }, { time_created, ...data }) {
@@ -179,7 +168,7 @@ export const actions = {
     `;
 
     const vars = { time_created, data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   deleteRelease ({ commit, dispatch }, time_created) {
@@ -190,7 +179,7 @@ export const actions = {
     `;
 
     const vars = { time_created };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   createSyndicate ({ commit, dispatch }, data) {
@@ -203,7 +192,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   leaveSyndicate ({ commit, dispatch }, syndicate_id) {
@@ -214,7 +203,7 @@ export const actions = {
     `;
 
     const vars = { syndicate_id };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   createProposal ({ commit, dispatch }, data) {
@@ -227,7 +216,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   castVote ({ commit, dispatch }, data) {
@@ -240,7 +229,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   getPayoutSettings ({ commit }) {
@@ -263,7 +252,7 @@ export const actions = {
       }
       `;
 
-    return this.$axios.post("/api/private", { query })
+    return this.$axios.post('/api/private', { query })
     .then(({ data: { getPayoutSettings: settings }}) => settings);
   },
 
@@ -275,7 +264,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   createSource ({ commit, dispatch }, token) {
@@ -286,7 +275,7 @@ export const actions = {
     `;
 
     const vars = { token };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   setDefaultSource ({ commit, dispatch }, source_id) {
@@ -297,7 +286,7 @@ export const actions = {
     `;
 
     const vars = { source_id };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   deleteSource ({ commit, dispatch }, source_id) {
@@ -308,7 +297,7 @@ export const actions = {
     `;
 
     const vars = { source_id };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   getAllChannels ({ commit }) {
@@ -324,9 +313,9 @@ export const actions = {
       }
     `;
 
-    return this.$axios.post("/api/public", { query })
+    return this.$axios.post('/api/public', { query })
     .then(({ data: { getAllChannels: channels }}) => {
-      commit("SET_CHANNELS", channels);
+      commit('SET_CHANNELS', channels);
     });
   },
 
@@ -343,9 +332,9 @@ export const actions = {
       }
     `;
 
-    return this.$axios.post("/api/public", { query })
+    return this.$axios.post('/api/public', { query })
     .then(({ data: { getAllSyndicates: syndicates }}) => {
-      commit("SET_SYNDICATES", syndicates);
+      commit('SET_SYNDICATES', syndicates);
     });
   },
 
@@ -366,7 +355,7 @@ export const actions = {
       }
     `;
 
-    return this.$axios.post("/api/private", { query })
+    return this.$axios.post('/api/private', { query })
     .then(({ data: { getSources }}) => getSources);
   },
 
@@ -389,7 +378,7 @@ export const actions = {
       }
     `;
 
-    return this.$axios.post("/api/private", { query })
+    return this.$axios.post('/api/private', { query })
     .then(({ data: { getSubscriberByID: subscriber }}) => subscriber);
   },
 
@@ -410,7 +399,7 @@ export const actions = {
     `;
 
     const vars = { channel_id, syndicate_id };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   createSubscription ({ commit, dispatch }, data) {
@@ -430,7 +419,7 @@ export const actions = {
     `;
 
     const vars = { ...data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   login ({ commit }, { email, password, redirect }) {
@@ -450,9 +439,9 @@ export const actions = {
       password,
     };
 
-    return this.$axios.post("/api/public", { query, vars })
+    return this.$axios.post('/api/public', { query, vars })
     .then(({ data: { getToken: result }}) => {
-      commit("SET_SESSION", result);
+      commit('SET_SESSION', result);
       if (redirect) {
         this.$router.push({ path: redirect });
       }
@@ -460,13 +449,13 @@ export const actions = {
   },
 
   logout ({ commit }, { redirect, silent }) {
-    commit("UNSET_SESSION");
-    this.$bus.$emit("logout");
+    commit('UNSET_SESSION');
+    this.$bus.$emit('logout');
 
     if (!silent) {
-      this.$bus.$emit("snack", {
-        type: "success",
-        message: "Logout successful.",
+      this.$bus.$emit('snack', {
+        type: 'success',
+        message: 'Logout successful.',
         status: 200
       });
     }
@@ -487,7 +476,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/public", { query, vars });
+    return this.$axios.post('/api/public', { query, vars });
   },
 
   initializeSubscriber ({ commit, dispatch }, data) {
@@ -501,7 +490,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/public", { query, vars });
+    return this.$axios.post('/api/public', { query, vars });
   },
 
   updateChannel ({ commit, dispatch }, data) {
@@ -515,7 +504,7 @@ export const actions = {
     `;
 
     const vars = { data };
-    return this.$axios.post("/api/private", { query, vars });
+    return this.$axios.post('/api/private', { query, vars });
   },
 
   async uploadFile ({ commit, dispatch }, { file, time_created, syndicate_id, type, progress }) {
@@ -539,15 +528,13 @@ export const actions = {
     const uploadURL = await this.$axios.post(`/api/private`, { query, vars })
     .then(({ data: { getUploadURL }}) => getUploadURL);
 
-    console.log("uploadURL:\n", uploadURL)
-
     await this.$axios.put(uploadURL, file, {
       onUploadProgress: progress,
       transformRequest: [
         (data, headers) => {
           delete headers.common;
           delete headers.put;
-          headers["Content-Type"] = file.type;
+          headers['Content-Type'] = file.type;
           return data;
         }
       ]
@@ -574,14 +561,14 @@ export const mutations = {
     } = result;
 
     if (process.browser) {
-      cookie.set("auth", result);
+      cookie.set('auth', result);
     }
 
     const decoded = decode(id_token);
     const email = decoded.email;
     const email_verified = decoded.email_verified;
-    const id = decoded.sub.replace(/auth0\|(acct|cus)_/, "");
-    const role = decoded["https://sub.city/role"];
+    const id = decoded.sub.replace(/auth0\|(acct|cus)_/, '');
+    const role = decoded['https://sub.city/role'];
 
     state.email = email;
     state.email_verified = email_verified;
@@ -591,7 +578,7 @@ export const mutations = {
   },
 
   UNSET_SESSION (state) {
-    cookie.remove("auth");
+    cookie.remove('auth');
     state.role = null;
     state.token = null;
   }

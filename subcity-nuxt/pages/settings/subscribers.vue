@@ -1,7 +1,7 @@
 <template>
   <section class="container">
 
-    <div class="md-layout md-gutter" style="margin-top: 32px;">
+    <div class="md-layout md-gutter">
       <div class="md-layout-item md-size-100">
         <md-table v-model="subscribers" md-sort="time_created" md-sort-order="asc" md-card style="margin: 0;">
           <md-table-toolbar>
@@ -68,6 +68,18 @@
 <script>
   export default {
     name: "SettingsSubscribers",
+
+    head () {
+      return {
+        title: `Subscribers || sub.city`,
+      }
+    },
+
+    fetch ({ store, redirect }) {
+      if (!store.state.role || store.state.role !== 'channel') {
+        return redirect('/portal?login=true')
+      }
+    },
 
     data: () => ({
       addressDialog: false,

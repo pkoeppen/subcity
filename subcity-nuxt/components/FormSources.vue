@@ -109,7 +109,7 @@
 
     mounted () {
 
-      stripe = Stripe("pk_test_7yS5dDjXxrthjZg8ninXVLUK");
+      stripe = Stripe(process.env.STRIPE_PUBLIC_KEY);
 
       const elements = stripe.elements({
         fonts: [{
@@ -221,7 +221,6 @@
       getSources () {
         return this.$store.dispatch("getSources")
         .then(sources => {
-          console.log(JSON.stringify(sources,null,2))
           this.sources = sources;
         })
         .catch(error => {
